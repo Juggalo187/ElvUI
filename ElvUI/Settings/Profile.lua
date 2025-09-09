@@ -213,6 +213,8 @@ P.bags = {
 		interval = 0.2,
 		details = false,
 		progressBar = true,
+		gold = 1,
+		silver = 0
 	},
 	split = {
 		bagSpacing = 5,
