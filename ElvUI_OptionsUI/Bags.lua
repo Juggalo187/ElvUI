@@ -693,7 +693,7 @@ E.Options.args.bags = {
 		vendorGrays = {
 			order = 8,
 			type = "group",
-			name = L["Vendor Grays/Greens/Blues"],
+			name = L["Auto-sell"],
 			get = function(info) return E.db.bags.vendorGrays[info[#info]] end,
 			set = function(info, value) E.db.bags.vendorGrays[info[#info]] = value B:UpdateSellFrameSettings() end,
 			args = {
@@ -712,13 +712,13 @@ E.Options.args.bags = {
 					order = 3,
 					type = "toggle",
 					name = L["Include Greens"],
-					desc = L["Automatically vendor green weapons and armor when visiting a vendor."]
+					desc = L["Automatically vendor green items when visiting a vendor."]
 				},
 				enableblue = {
 					order = 4,
 					type = "toggle",
 					name = L["Include Blues"],
-					desc = L["Automatically vendor blue weapons and armor when visiting a vendor."]
+					desc = L["Automatically vendor blue items when visiting a vendor."]
 				},
 				interval = {
 					order = 5,
