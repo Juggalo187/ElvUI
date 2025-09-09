@@ -688,7 +688,7 @@ function B:RegisterUpdateDelayed()
 		if bagFrame.registerUpdate then
 			B:UpdateAllSlots(bagFrame)
 
-			bagFrame:RegisterBucketEvent("BAG_UPDATE", 0.2, "BagUpdate")
+			bagFrame:RegisterEvent("BAG_UPDATE")
 			bagFrame:RegisterEvent("BAG_UPDATE_COOLDOWN")
 
 			for _, event in pairs(bagFrame.events) do
@@ -697,6 +697,8 @@ function B:RegisterUpdateDelayed()
 
 			bagFrame.registerUpdate = nil
 			shouldUpdateFade = true -- we should refresh the bag search after sorting
+
+			--E:StopSpinnerFrame(bagFrame.holderFrame)
 		end
 	end
 

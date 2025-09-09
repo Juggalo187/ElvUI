@@ -70,6 +70,19 @@ local SEARCH = SEARCH
 
 local SEARCH_STRING = ""
 
+local sellValueGold
+local sellValueSilver
+local sellweapon
+local sellarmor
+
+function simpleTableToString(t)
+    local parts = {}
+    for k, v in pairs(t) do
+        table.insert(parts, k .. "=" .. tostring(v))
+    end
+    return "{" .. table.concat(parts, ", ") .. "}"
+end
+
 function B:GetContainerFrame(arg)
 	if type(arg) == "boolean" and arg == true then
 		return B.BankFrame
@@ -183,6 +196,7 @@ function B:SetSearch(query)
 				local _, _, _, _, _, _, link = GetContainerItemInfo(bagID, slotID)
 				local button = bagFrame.Bags[bagID][slotID]
 				local success, result = pcall(Search.Matches, Search, link, query)
+
 				if empty or (success and result) then
 					SetItemButtonDesaturated(button, button.locked or button.junkDesaturate)
 					button.searchOverlay:Hide()
@@ -321,9 +335,6 @@ function B:UpdateSlot(frame, bagID, slotID)
 	slot:Show()
 	slot.questIcon:Hide()
 	slot.JunkIcon:Hide()
-	slot.unlearnedVanityIcon:Hide()
-	slot.unlearnedWardrobeIcon:Hide()
-	slot.unlearnedVanityAndWardrobeIcon:Hide()
 	slot.itemLevel:SetText("")
 	slot.bindType:SetText("")
 
@@ -341,9 +352,8 @@ function B:UpdateSlot(frame, bagID, slotID)
 		slot:SetBackdropBorderColor(unpack(B.ProfessionColors[bagType]))
 		slot.ignoreBorderColors = true
 	elseif clink then
-		slot.id = GetItemInfoFromHyperlink(clink)
-		local iLvl, iType, iSubtype, itemEquipLoc, itemPrice
-		slot.name, _, slot.rarity, iLvl, _, iType, iSubtype, _, itemEquipLoc, _, itemPrice = GetItemInfo(clink)
+		local iLvl, iType, itemEquipLoc, itemPrice
+		slot.name, _, slot.rarity, iLvl, _, iType, _, _, itemEquipLoc, _, itemPrice = GetItemInfo(clink)
 
 		local isQuestItem, questId, isActiveQuest = GetContainerItemQuestInfo(bagID, slotID)
 		local r, g, b
@@ -380,28 +390,14 @@ function B:UpdateSlot(frame, bagID, slotID)
 			end
 		end
 
-		slot.isUnlearnedVanity = VANITY_ITEMS[slot.id] and not C_VanityCollection.IsCollectionItemOwned(slot.id) and iType ~= "Consumable"
-		local appearanceID = C_Appearance.GetItemAppearanceID(slot.id)
-		slot.isUnlearnedWardrobe = appearanceID and not C_AppearanceCollection.IsAppearanceCollected(appearanceID)
 		slot.isJunk = (slot.rarity and slot.rarity == 0) and (itemPrice and itemPrice > 0) and (iType and iType ~= "Quest")
 		slot.junkDesaturate = slot.isJunk and E.db.bags.junkDesaturate
 
-		local showVanity = slot.unlearnedVanityIcon and E.db.bags.unlearnedVanityIcon and slot.isUnlearnedVanity
-		local showWardrobe = slot.unlearnedWardrobeIcon and E.db.bags.unlearnedWardrobeIcon and slot.isUnlearnedWardrobe
-
-
-		-- Both Vanity and Wardrobe Unlock
-		if showVanity and showWardrobe then
-			slot.unlearnedVanityAndWardrobeIcon:Show()
-		-- Vanity Unlock Icon
-		elseif showVanity then
-			slot.unlearnedVanityIcon:Show()
-		-- Wardrobe Unlock Icon
-		elseif showWardrobe then
-			slot.unlearnedWardrobeIcon:Show()
 		-- Junk Icon
-		elseif slot.JunkIcon and E.db.bags.junkIcon and slot.isJunk then
-			slot.JunkIcon:Show()
+		if slot.JunkIcon then
+			if E.db.bags.junkIcon and slot.isJunk then
+				slot.JunkIcon:Show()
+			end
 		end
 
 		if B.db.questIcon and (questId and not isActiveQuest) then
@@ -681,34 +677,10 @@ function B:Layout(isBank)
 						f.Bags[bagID][slotID].questIcon:Hide()
 					end
 
-					if not f.Bags[bagID][slotID].unlearnedVanityAndWardrobeIcon then
-						local unlearnedVanityAndWardrobeIcon = f.Bags[bagID][slotID]:CreateTexture(nil, "OVERLAY")
-						unlearnedVanityAndWardrobeIcon:SetTexture(E.Media.Textures.BagVanityAndWardrobe)
-						unlearnedVanityAndWardrobeIcon:Point("BOTTOMLEFT", 1, 1)
-						unlearnedVanityAndWardrobeIcon:Hide()
-						f.Bags[bagID][slotID].unlearnedVanityAndWardrobeIcon = unlearnedVanityAndWardrobeIcon
-					end
-
-					if not f.Bags[bagID][slotID].unlearnedVanityIcon then
-						local unlearnedVanityIcon = f.Bags[bagID][slotID]:CreateTexture(nil, "OVERLAY")
-						unlearnedVanityIcon:SetTexture(E.Media.Textures.BagVanityIcon)
-						unlearnedVanityIcon:Point("BOTTOMLEFT", 1, 1)
-						unlearnedVanityIcon:Hide()
-						f.Bags[bagID][slotID].unlearnedVanityIcon = unlearnedVanityIcon
-					end
-
-					if not f.Bags[bagID][slotID].unlearnedWardrobeIcon then
-						local unlearnedWardrobeIcon = f.Bags[bagID][slotID]:CreateTexture(nil, "OVERLAY")
-						unlearnedWardrobeIcon:SetAtlas(E.Media.Atlases.BagWardrobeIcon)
-						unlearnedWardrobeIcon:Point("BOTTOMLEFT", 1, 1)
-						unlearnedWardrobeIcon:Hide()
-						f.Bags[bagID][slotID].unlearnedWardrobeIcon = unlearnedWardrobeIcon
-					end
-
 					if not f.Bags[bagID][slotID].JunkIcon then
 						local JunkIcon = f.Bags[bagID][slotID]:CreateTexture(nil, "OVERLAY")
 						JunkIcon:SetTexture(E.Media.Textures.BagJunkIcon)
-						JunkIcon:Point("BOTTOMLEFT", 1, 1)
+						JunkIcon:Point("TOPLEFT", 1, 0)
 						JunkIcon:Hide()
 						f.Bags[bagID][slotID].JunkIcon = JunkIcon
 					end
@@ -743,18 +715,6 @@ function B:Layout(isBank)
 
 				f.Bags[bagID][slotID]:SetID(slotID)
 				f.Bags[bagID][slotID]:Size(buttonSize)
-
-				if f.Bags[bagID][slotID].unlearnedVanityAndWardrobeIcon then
-					f.Bags[bagID][slotID].unlearnedVanityAndWardrobeIcon:Size(buttonSize/2)
-				end
-
-				if f.Bags[bagID][slotID].unlearnedVanityIcon then
-					f.Bags[bagID][slotID].unlearnedVanityIcon:Size(buttonSize/2)
-				end
-
-				if f.Bags[bagID][slotID].unlearnedWardrobeIcon then
-					f.Bags[bagID][slotID].unlearnedWardrobeIcon:Size(buttonSize/2)
-				end
 
 				if f.Bags[bagID][slotID].JunkIcon then
 					f.Bags[bagID][slotID].JunkIcon:Size(buttonSize/2)
@@ -987,7 +947,7 @@ function B:OnEvent(event, ...)
 		B:UpdateCooldowns(self)
 	elseif event == "PLAYERBANKSLOTS_CHANGED" then
 		B:UpdateBagSlots(self, -1)
-	elseif (event == "QUEST_ACCEPTED" or event == "QUEST_REMOVED" or event == "QUEST_LOG_UPDATE" or event == "APPEARANCE_COLLECTED") and self:IsShown() then
+	elseif (event == "QUEST_ACCEPTED" or event == "QUEST_REMOVED" or event == "QUEST_LOG_UPDATE") and self:IsShown() then
 		B:UpdateAllSlots(self)
 		for slotID = 1, GetKeyRingSize() do
 			B:UpdateKeySlot(slotID)
@@ -1100,18 +1060,33 @@ function B:GetGraysInfo()
 
 	local itemList = self.SellFrame.Info.itemList
 	local value = 0
-
+	local sellValueGold = E.db.bags.vendorGrays.gold
+	local sellValueSilver = E.db.bags.vendorGrays.silver
+	local sellweapon = E.db.bags.vendorGrays.weapon
+	local sellarmor =E.db.bags.vendorGrays.armor
+	
+	local scanTooltip
 	for bag = 0, 4 do
 		for slot = 1, GetContainerNumSlots(bag) do
 			local itemID = GetContainerItemID(bag, slot)
 
 			if itemID then
-				local _, link, rarity, _, _, iType, _, _, _, _, itemPrice = GetItemInfo(itemID)
-
-				if (rarity and rarity == 0) and (iType and iType ~= "Quest") and (itemPrice and itemPrice > 0) then
+				local name, link, rarity, _, _, iType, _, _, _, _, itemPrice = GetItemInfo(itemID)
+				local sellvalueCopper = (sellValueGold * 10000) + (sellValueSilver * 100)
+				local isJunk = (rarity == 0)
+				local isValuableGear = (iType == "Weapon" and sellweapon) or (iType == "Armor" and sellarmor) and itemPrice and (itemPrice > sellvalueCopper)
+				local isGreenEnabled = self.SellFrame.Info.enablegreen and (rarity == 2)
+				local isBlueEnabled = self.SellFrame.Info.enableblue and (rarity == 3)
+				local isNotQuestItem = (iType ~= "Quest")
+				local isWorthless = (itemPrice == 0)
+				
+				
+				
+				
+				if ((isJunk or (isValuableGear and (isGreenEnabled or isBlueEnabled))) and isNotQuestItem and not isWorthless) then
 					local stackCount = select(2, GetContainerItemInfo(bag, slot)) or 1
 					itemPrice = itemPrice * stackCount
-
+				
 					value = value + itemPrice
 					tinsert(itemList, {bag, slot, link, itemPrice, stackCount})
 				end
@@ -1149,7 +1124,7 @@ function B:VendorGrayCheck()
 	local itemCount, value = B:GetGraysInfo()
 
 	if itemCount == 0 then
-		E:Print(L["No gray items to delete."])
+		E:Print(L["No items to sell."])
 	elseif not MerchantFrame:IsShown() then
 		E.PopupDialogs.DELETE_GRAYS.Money = value
 		E:StaticPopup_Show("DELETE_GRAYS")
@@ -1158,23 +1133,15 @@ function B:VendorGrayCheck()
 	end
 end
 
-local function BagUpdate(self, bagIDs)
-	for bagID in pairs(bagIDs) do
-		B.OnEvent(self, "BAG_UPDATE", bagID)
-	end
-end
-
 function B:ContructContainerFrame(name, isBank)
 	local strata = E.db.bags.strata or "DIALOG"
 
 	local f = CreateFrame("Button", name, E.UIParent)
-	LibStub("AceBucket-3.0"):Embed(f)
 	f:SetTemplate("Transparent")
 	f:SetFrameStrata(strata)
-	f.BagUpdate = BagUpdate
-	f:RegisterBucketEvent("BAG_UPDATE", 0.2, "BagUpdate") -- Has to be on both frames
+	f:RegisterEvent("BAG_UPDATE") -- Has to be on both frames
 	f:RegisterEvent("BAG_UPDATE_COOLDOWN") -- Has to be on both frames
-	f.events = isBank and {"PLAYERBANKSLOTS_CHANGED"} or {"ITEM_LOCK_CHANGED", "ITEM_UNLOCKED", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_LOG_UPDATE", "APPEARANCE_COLLECTED"}
+	f.events = isBank and {"PLAYERBANKSLOTS_CHANGED"} or {"ITEM_LOCK_CHANGED", "ITEM_UNLOCKED", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_LOG_UPDATE"}
 
 	for _, event in ipairs(f.events) do
 		f:RegisterEvent(event)
@@ -1253,12 +1220,13 @@ function B:ContructContainerFrame(name, isBank)
 		f.sortButton:SetScript("OnEnter", self.Tooltip_Show)
 		f.sortButton:SetScript("OnLeave", GameTooltip_Hide)
 		f.sortButton:SetScript("OnClick", function()
-			f:UnregisterAllBuckets()
 			f:UnregisterAllEvents() --Unregister to prevent unnecessary updates
 			if not f.registerUpdate then
 				B:SortingFadeBags(f, true)
 			end
 			B:CommandDecorator(B.SortBags, "bank")()
+
+			--E:StartSpinnerFrame(f.holderFrame)
 		end)
 		if E.db.bags.disableBankSort then
 			f.sortButton:Disable()
@@ -1382,6 +1350,8 @@ function B:ContructContainerFrame(name, isBank)
 				B:SortingFadeBags(f, true)
 			end
 			B:CommandDecorator(B.SortBags, "bags")()
+
+			--E:StartSpinnerFrame(f.holderFrame)
 		end)
 		if E.db.bags.disableBagSort then
 			f.sortButton:Disable()
@@ -1513,7 +1483,6 @@ function B:ToggleBags(id)
 	if id and (GetContainerNumSlots(id) == 0) then return end --Closes a bag when inserting a new container..
 
 	if not B.BagFrame:IsShown() then
-		B:UpdateAllBagSlots()
 		B:OpenBags()
 --	else
 --		B:CloseBags()
@@ -1524,7 +1493,6 @@ function B:ToggleBackpack()
 	if IsOptionFrameOpen() then return end
 
 	if IsBagOpen(0) then
-		B:UpdateAllBagSlots()
 		B:OpenBags()
 		PlaySound("igBackPackOpen")
 	else
@@ -1705,6 +1673,10 @@ function B:PostBagMove()
 	end
 end
 
+function B:MERCHANT_SHOW()
+	B.VendorGrayCheck()
+end
+
 function B:MERCHANT_CLOSED()
 	B.SellFrame:Hide()
 end
@@ -1770,36 +1742,64 @@ end
 function B:CreateSellFrame()
 	B.SellFrame = CreateFrame("Frame", "ElvUIVendorGraysFrame", E.UIParent)
 	B.SellFrame:Size(200, 40)
-	B.SellFrame:Point("CENTER", E.UIParent)
+	B.SellFrame:SetPoint("CENTER")
 	B.SellFrame:CreateBackdrop("Transparent")
-	B.SellFrame:SetAlpha(1)
+	B.SellFrame:SetAlpha(E.db.bags.vendorGrays.progressBar and 1 or 0)
 	B.SellFrame:Hide()
 
 	B.SellFrame.title = B.SellFrame:CreateFontString(nil, "OVERLAY")
 	B.SellFrame.title:FontTemplate(nil, 12, "OUTLINE")
-	B.SellFrame.title:Point("TOP", B.SellFrame, "TOP", 0, -2)
+	B.SellFrame.title:Point("TOP", 0, -2)
 	B.SellFrame.title:SetText(L["Vendoring Grays"])
 
 	B.SellFrame.statusbar = CreateFrame("StatusBar", "ElvUIVendorGraysFrameStatusbar", B.SellFrame)
 	B.SellFrame.statusbar:Size(180, 16)
-	B.SellFrame.statusbar:Point("BOTTOM", B.SellFrame, "BOTTOM", 0, 4)
+	B.SellFrame.statusbar:Point("BOTTOM", 0, 4)
 	B.SellFrame.statusbar:SetStatusBarTexture(E.media.normTex)
 	B.SellFrame.statusbar:SetStatusBarColor(1, 0, 0)
 	B.SellFrame.statusbar:CreateBackdrop("Transparent")
 
 	B.SellFrame.statusbar.ValueText = B.SellFrame.statusbar:CreateFontString(nil, "OVERLAY")
 	B.SellFrame.statusbar.ValueText:FontTemplate(nil, 12, "OUTLINE")
-	B.SellFrame.statusbar.ValueText:Point("CENTER", B.SellFrame.statusbar)
+	B.SellFrame.statusbar.ValueText:SetPoint("CENTER")
 	B.SellFrame.statusbar.ValueText:SetText("0 / 0 ( 0s )")
 
 	B.SellFrame.Info = {
-		SellInterval = 0.2,
-		details = false,
+		SellInterval = E.db.bags.vendorGrays.interval,
+		details = E.db.bags.vendorGrays.details,
+		enablegreen = E.db.bags.vendorGrays.enablegreen,
+		enableblue = E.db.bags.vendorGrays.enablegreen,
+		sellValueGold = E.db.bags.vendorGrays.gold,
+		sellValueSilver = E.db.bags.vendorGrays.silver,
+		sellweapon = E.db.bags.vendorGrays.weapon,
+		sellarmor = E.db.bags.vendorGrays.armor,
 		itemList = {}
 	}
 
 	B.SellFrame:SetScript("OnUpdate", B.VendorGreys_OnUpdate)
 end
+
+
+function B:UpdateSellFrameSettings()
+	if not B.SellFrame then return end
+
+	B.SellFrame.Info.SellInterval = E.db.bags.vendorGrays.interval
+	B.SellFrame.Info.details = E.db.bags.vendorGrays.details
+	B.SellFrame.Info.enablegreen = E.db.bags.vendorGrays.enablegreen
+	B.SellFrame.Info.enableblue = E.db.bags.vendorGrays.enableblue
+	B.SellFrame.Info.gold = E.db.bags.vendorGrays.gold
+	B.SellFrame.Info.silver = E.db.bags.vendorGrays.silver
+	B.SellFrame.Info.weapon = E.db.bags.vendorGrays.weapon
+	B.SellFrame.Info.armor = E.db.bags.vendorGrays.armor
+	sellValueSilver = E.db.bags.vendorGrays.silver
+	sellValueGold = E.db.bags.vendorGrays.gold
+	sellweapon = E.db.bags.vendorGrays.weapon
+	sellarmor = E.db.bags.vendorGrays.armor
+	
+	B.SellFrame:SetAlpha(E.db.bags.vendorGrays.progressBar and 1 or 0)
+end
+
+
 
 B.BagIndice = {
 	quiver = 0x0001,
@@ -1832,6 +1832,7 @@ function B:Initialize()
 
 	--Creating vendor grays frame
 	B:CreateSellFrame()
+	B:RegisterEvent("MERCHANT_SHOW")
 	B:RegisterEvent("MERCHANT_CLOSED")
 
 	--Bag Mover (We want it created even if Bags module is disabled, so we can use it for default bags too)
@@ -1851,6 +1852,8 @@ function B:Initialize()
 	end
 
 	B.Initialized = true
+	
+	
 	B.db = E.db.bags
 	B.BagFrames = {}
 	B.ProfessionColors = {

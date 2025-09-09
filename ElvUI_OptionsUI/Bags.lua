@@ -690,6 +690,90 @@ E.Options.args.bags = {
 				}
 			}
 		},
+		vendorGrays = {
+			order = 8,
+			type = "group",
+			name = L["Vendor Grays/Greens/Blues"],
+			get = function(info) return E.db.bags.vendorGrays[info[#info]] end,
+			set = function(info, value) E.db.bags.vendorGrays[info[#info]] = value B:UpdateSellFrameSettings() end,
+			args = {
+				header = {
+					order = 1,
+					type = "header",
+					name = L["Vendor Grays"]
+				},
+				enable = {
+					order = 2,
+					type = "toggle",
+					name = L["Enable"],
+					desc = L["Automatically vendor gray items when visiting a vendor."]
+				},
+				enablegreen = {
+					order = 3,
+					type = "toggle",
+					name = L["Include Greens"],
+					desc = L["Automatically vendor green weapons and armor when visiting a vendor."]
+				},
+				enableblue = {
+					order = 4,
+					type = "toggle",
+					name = L["Include Blues"],
+					desc = L["Automatically vendor blue weapons and armor when visiting a vendor."]
+				},
+				interval = {
+					order = 5,
+					type = "range",
+					name = L["Sell Interval"],
+					desc = L["Will attempt to sell another item in set interval after previous one was sold."],
+					min = 0.1, max = 1, step = 0.1,
+					disabled = function() return not E.db.bags.vendorGrays.enable end
+				},
+				details = {
+					order = 6,
+					type = "toggle",
+					name = L["Vendor Gray Detailed Report"],
+					desc = L["Displays a detailed report of every item sold when enabled."],
+					disabled = function() return not E.db.bags.vendorGrays.enable end
+				},
+				progressBar = {
+					order = 7,
+					type = "toggle",
+					name = L["Progress Bar"],
+					disabled = function() return not E.db.bags.vendorGrays.enable end
+				},
+				weapon = {
+					order = 8,
+					type = "toggle",
+					name = L["Weapons"]
+				},
+				armor = {
+					order = 9,
+					type = "toggle",
+					name = L["Armor"]
+				},
+				sellvalue = {
+					order = 10,
+					name = "Sell if Value is Above",
+					type = "group",
+					get = function(info) return E.db.bags.vendorGrays[info[#info]] end,
+					set = function(info, value) E.db.bags.vendorGrays[info[#info]] = value B:UpdateSellFrameSettings() end,
+					args = {
+						gold = {
+							order = 1,
+							name = "Gold",
+							type = "range",
+							min = 0, max = 500, step = 1,
+						},
+						silver = {
+							order = 2,
+							name = "Silver",
+							type = "range",
+							min = 0, max = 99, step = 1,
+						}
+					}
+				}
+			}
+		},
 		bagSortingGroup = {
 			order = 9,
 			type = "group",

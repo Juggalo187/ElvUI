@@ -208,6 +208,12 @@ P.bags = {
 			questItem = {r = 1, g = 0.30, b = 0.30}
 		}
 	},
+	vendorGrays = {
+		enable = false,
+		interval = 0.2,
+		details = false,
+		progressBar = true,
+	},
 	split = {
 		bagSpacing = 5,
 		player = false,
