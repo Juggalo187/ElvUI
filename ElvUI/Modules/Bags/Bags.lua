@@ -1157,6 +1157,15 @@ StaticPopupDialogs["CONFIRM_DELETE_ITEMS"] =  {
   hideOnEscape = true,
 }
 
+local function ColorByRarity(name, itemID)
+	local rarity = select(3, GetItemInfo(itemID))
+	if rarity == 0 then return "|cFF808080"..name.."|r" end
+	if rarity == 1 then return "|cFFFFFFFF"..name.."|r" end
+	if rarity == 2 then return "|cFF00FF00"..name.."|r" end
+	if rarity == 3 then return "|cFF0000FF"..name.."|r" end
+	return name
+end
+
 function B:ShowJunkConfirmFrame(deletelist, mode)
 	local frame = B.JunkConfirmFrame
 	if not frame or not frame.content then return end
@@ -1165,7 +1174,7 @@ function B:ShowJunkConfirmFrame(deletelist, mode)
 	B._lastJunkMode = mode
 	
 	-- base title (keep whatever you already used in CreateJunkConfirmFrame)
-	local baseTitle = "|cffff8000Click an item to add it to ignore list|r"
+	local baseTitle = "|cFFFFCC00Click an item to add it to ignore list|r"
 	
 	-- ensure each item.value exists (fallback compute from slots) and compute total
 	local totalValue = 0
@@ -1191,9 +1200,6 @@ function B:ShowJunkConfirmFrame(deletelist, mode)
 		deletelist = {}
 	end
 	if totalValue == 0 then
-	--B:ShowIgnoreListFrame()
-	--frame:Hide()
-	--return
 	frame.title:SetText("No Junk to Delete.")
 	else
 	frame.title:SetText(baseTitle .. "\nTotal: " .. B:FormatMoney(totalValue))
@@ -1206,7 +1212,7 @@ function B:ShowJunkConfirmFrame(deletelist, mode)
 	end
 	
 	-- layout constants
-	local rowHeight = 22
+	local rowHeight = 24
 	local contentWidth = 340
 	local valueWidth = 110   -- width for the formatted money text (adjust)
 	local stackWidth = 56    -- width for the "[xN]" text (adjust)
@@ -1233,25 +1239,35 @@ function B:ShowJunkConfirmFrame(deletelist, mode)
         end
         item.value = total
     end
-
+	--skuly
+	local name, link, icon = select(1, GetItemInfo(item.itemID)), select(2, GetItemInfo(item.itemID)), GetItemIcon(item.itemID)
+	local displayName = name or ("Item "..tostring(item.itemID))
+    local colored = ColorByRarity(displayName, item.itemID)
     -- create the row button
     local btn = CreateFrame("Button", nil, frame.content)
     btn:SetSize(contentWidth, rowHeight)
     btn:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 5, -topPadding - (i - 1) * rowHeight)
 
+	
+	btn.icon = btn:CreateTexture(nil, "BACKGROUND")
+	btn.icon:SetSize(20, 20)
+	btn.icon:SetPoint("LEFT", 2, 0)
+	if icon then btn.icon:SetTexture(icon) else btn.icon:SetTexture(nil) end
+	
         -- Item link (left-aligned)
 	local linkText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	linkText:SetPoint("LEFT", btn, "LEFT", 2, 0)
+	linkText:SetPoint("LEFT", btn, "LEFT", 24, 0)
 	linkText:SetText(item.link or "Unknown Item")
+	linkText:SetText(colored)
 	
 	-- Stack count (right of linkText)
 	local stackText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	stackText:SetPoint("LEFT", linkText, "RIGHT", 2, 0)
+	stackText:SetPoint("LEFT", linkText, "RIGHT", 3, 0)
 	stackText:SetText("|cFF00FF00[x" .. item.stackCount .. "]|r")
 	
 	-- Value (right of stackText)
 	local valueText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	valueText:SetPoint("LEFT", stackText, "RIGHT", 2, 0)
+	valueText:SetPoint("LEFT", stackText, "RIGHT", 3, 0)
 	valueText:SetText(GetCoinTextureString(item.value))
 
     -- Tooltip
@@ -1262,6 +1278,10 @@ function B:ShowJunkConfirmFrame(deletelist, mode)
         GameTooltip:AddLine("Total Value: " .. B:FormatMoney(item.value or 0), 1, 1, 1)
         GameTooltip:Show()
     end)
+	-- mouseover tooltip
+      btn:SetScript("OnEnter", function(self)
+        if item.link then GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink(item.link); GameTooltip:Show() end
+      end)
     btn:SetScript("OnLeave", function()
         GameTooltip:Hide()
 		end)
@@ -1433,15 +1453,6 @@ end
 	local ignoreFrame
 	local rowButtons = {}
 
-local function ColorByRarity(name, itemID)
-	local rarity = select(3, GetItemInfo(itemID))
-	if rarity == 0 then return "|cFF808080"..name.."|r" end
-	if rarity == 1 then return "|cFFFFFFFF"..name.."|r" end
-	if rarity == 2 then return "|cFF00FF00"..name.."|r" end
-	if rarity == 3 then return "|cFF0000FF"..name.."|r" end
-	return name
-end
-
 local function RemoveIgnoredItem(itemID)
 	E.db.bags.IgnoreVendList[itemID] = nil
 	if B and B.UpdateListRemove then B:UpdateListRemove(itemID) end -- optional update call like original
@@ -1481,14 +1492,8 @@ function B:ShowIgnoreListFrame()
 	B._lastJunkMode = mode
 	if not ignoreFrame then
 	local f = CreateFrame("Frame", "ignoreFrame", UIParent, "BackdropTemplate")
-	f:SetSize(420, 360)
+	f:SetSize(280, 280)
 	f:ClearAllPoints()
-	--f:SetToplevel(true)
-	--f:EnableMouse(true)
-	--f:SetMovable(true)
-	--f:RegisterForDrag("LeftButton")
-	--f:SetScript("OnDragStart", function(self) self:StartMoving() end)
-	--f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
 	MakeMovable(f, "ignoreFrame")
 	f:SetPoint("CENTER")
 	
@@ -1501,7 +1506,7 @@ function B:ShowIgnoreListFrame()
 	
 	
 	local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	title:SetPoint("TOP", 0, -10)
+	title:SetPoint("TOP", -10, -10)
 	title:SetText(L["Drag items here to add to ignore list"])
 	
 	local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
@@ -1540,7 +1545,7 @@ function f:Refresh()
 	tinsert(ids, v)
 	end
 	table.sort(ids)
-
+--skuly
   local y = -4
   local width = scroll:GetWidth()
   local index = 1
@@ -1552,19 +1557,24 @@ function f:Refresh()
     local btn = rowButtons[index]
     if not btn then
       btn = CreateFrame("Button", nil, content)
-      btn:SetSize(width - 20, 30)
+      btn:SetSize(width - 20, 20)
 
       btn.icon = btn:CreateTexture(nil, "BACKGROUND")
-      btn.icon:SetSize(26, 26)
+      btn.icon:SetSize(20, 20)
       btn.icon:SetPoint("LEFT", 4, 0)
 
-      btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-      btn.text:SetPoint("LEFT", 36, 0)
-      btn.text:SetJustifyH("LEFT")
+      --btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	  --btn.text:SetPoint("LEFT", btn, "LEFT", 24, 0)
+      --btn.text:SetJustifyH("LEFT")
+	  
+	   -- Item link (left-aligned)
+	  btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	  btn.text:SetPoint("LEFT", btn, "LEFT", 28, 0)
+	  btn.text:SetText(link or "Unknown Item")
 
       btn.remove = CreateFrame("Button", nil, btn, "UIPanelButtonTemplate")
       btn.remove:SetSize(70, 22)
-      btn.remove:SetPoint("RIGHT", -4, 0)
+      btn.remove:SetPoint("LEFT", btn.text, "RIGHT", 3, 0)
       btn.remove:SetText(REMOVE or "Remove")
 
       -- mouseover tooltip
@@ -1583,11 +1593,11 @@ function f:Refresh()
     btn.text:SetText(colored)
     btn.remove:SetScript("OnClick", function() RemoveIgnoredItem(itemID) end)
 
-    y = y - 36
+    y = y - 28
     index = index + 1
   end
 
-  content:SetHeight(math.max(1, -y + 8))
+  content:SetHeight(math.max(1, -y + 4))
 end
 
 
@@ -1659,7 +1669,6 @@ local function GetIDFromCursorInfo(info)
 	local id = GetIDFromCursorInfo(info1)
 	if id then
 	AddItemToIgnore(id)
-	--skuly
 	ClearCursor() -- remove the item from cursor (so it isn't dropped into world)
 	end
 	end
