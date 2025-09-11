@@ -89,21 +89,21 @@ bagdb = G.bags or {}
 bagdb.positions = bagdb.positions or {}
 
 local function MakeMovable(frame, key)
-key = key or frame:GetName()
-if not key then return end
-
--- restore
-local p = E.db.bags.positions[key]
-if p then
-    frame:ClearAllPoints()
-    frame:SetPoint(p[1], UIParent, p[2], p[3], p[4]) -- point, relativePoint, x, y (restores relative to UIParent)
-end
--- enable drag saving
-frame:SetMovable(true)
-frame:EnableMouse(true)
-frame:RegisterForDrag("LeftButton")
-frame:SetScript("OnDragStart", function(s) s:StartMoving() end)
-frame:SetScript("OnDragStop", function(s)
+	key = key or frame:GetName()
+	if not key then return end
+	
+	-- restore
+	local p = E.db.bags.positions[key]
+	if p then
+		frame:ClearAllPoints()
+		frame:SetPoint(p[1], UIParent, p[2], p[3], p[4]) -- point, relativePoint, x, y (restores relative to UIParent)
+	end
+	-- enable drag saving
+	frame:SetMovable(true)
+	frame:EnableMouse(true)
+	frame:RegisterForDrag("LeftButton")
+	frame:SetScript("OnDragStart", function(s) s:StartMoving() end)
+	frame:SetScript("OnDragStop", function(s)
     s:StopMovingOrSizing()
     local point, _, relPoint, x, y = s:GetPoint()
     E.db.bags.positions[key] = { point, relPoint, x, y }
@@ -1355,169 +1355,169 @@ function B:VendorGrays()
 end
 
 function B:VendorGrayCheck()
-if not E.db.bags.vendorGrays.enable then return end
-if JunkConfirmFrame and JunkConfirmFrame:IsShown() then B.JunkConfirmFrame:Hide() end
-local itemCount, value = B:GetGraysInfo()
-
-	if itemCount == 0 then
-    E:Print(L["No items to sell"])
-    return
+	if not E.db.bags.vendorGrays.enable then return end
+	if JunkConfirmFrame and JunkConfirmFrame:IsShown() then B.JunkConfirmFrame:Hide() end
+	local itemCount, value = B:GetGraysInfo()
+	
+		if itemCount == 0 then
+		E:Print(L["No items to sell"])
+		return
+		end
+	
+	-- If merchant is not shown, use the existing static popup flow
+	if not MerchantFrame:IsShown() then
+		E.PopupDialogs.DELETE_GRAYS.Money = value
+		E:StaticPopup_Show("DELETE_GRAYS")
+		return
 	end
-
--- If merchant is not shown, use the existing static popup flow
-if not MerchantFrame:IsShown() then
-    E.PopupDialogs.DELETE_GRAYS.Money = value
-    E:StaticPopup_Show("DELETE_GRAYS")
-    return
-end
-
--- Merchant is open -> build grouped deletelist and show confirmation UI for vendoring
-local flatList = {}
--- B:GetGraysInfo built B.SellFrame.Info.itemList already? It returns itemList and value,
--- but to be safe, call it and receive its itemList. We'll reconstruct grouped list from that itemList.
-local _, _ = B:GetGraysInfo() -- populates a local itemList inside the function; we instead re-run grouping below
-
--- Build grouped list similar to DeleteJunkCheck but using vendor criteria
-local grouped = {}
-for bag = 0, 4 do
-    for slot = 1, GetContainerNumSlots(bag) do
-        local itemID = GetContainerItemID(bag, slot)
-        if itemID and not E.db.bags.IgnoreVendList[itemID] then
-            local name, link, rarity, _, _, iType, _, _, _, _, itemPrice = GetItemInfo(itemID)
-            if itemPrice and itemPrice > 0 then
-                -- Determine if this item is selected by vendor-grays settings:
-                local isJunk = (rarity == 0)
-                local sellValueGold = E.db.bags.vendorGrays.gold
-                local sellValueSilver = E.db.bags.vendorGrays.silver
-                local sellweapon = E.db.bags.vendorGrays.weapon
-                local sellarmor = E.db.bags.vendorGrays.armor
-                local sellvalueCopper = (sellValueGold or 0) * 10000 + (sellValueSilver or 0) * 100
-                local isValuableGear = ((iType == "Weapon" and sellweapon) or (iType == "Armor" and sellarmor)) and itemPrice and (itemPrice > sellvalueCopper)
-                local isGreenEnabled = E.db.bags.vendorGrays.enablegreen and (rarity == 2)
-                local isBlueEnabled = E.db.bags.vendorGrays.enableblue and (rarity == 3)
-                local isNotQuestItem = (iType ~= "Quest")
-                local isWorthless = (itemPrice == 0)
-
-                if (isJunk or isValuableGear) and (isGreenEnabled or isBlueEnabled or isJunk) and isNotQuestItem and not isWorthless then
-                    local stackCount = select(2, GetContainerItemInfo(bag, slot)) or 1
-                    local stackValue = (itemPrice or 0) * stackCount
-
-                    if not grouped[itemID] then
-                        grouped[itemID] = {
-                            itemID = itemID,
-                            link = link,
-                            value = 0,
-                            stackCount = 0,
-                            slots = {}
-                        }
-                    end
-
-                    grouped[itemID].value = grouped[itemID].value + stackValue
-                    grouped[itemID].stackCount = grouped[itemID].stackCount + stackCount
-                    tinsert(grouped[itemID].slots, { bag = bag, slot = slot })
-                end
-            end
-        end
-    end
-end
-
-local deletelist = {}
-for _, item in pairs(grouped) do
-    tinsert(deletelist, item)
-end
+	
+	-- Merchant is open -> build grouped deletelist and show confirmation UI for vendoring
+	local flatList = {}
+	-- B:GetGraysInfo built B.SellFrame.Info.itemList already? It returns itemList and value,
+	-- but to be safe, call it and receive its itemList. We'll reconstruct grouped list from that itemList.
+	local _, _ = B:GetGraysInfo() -- populates a local itemList inside the function; we instead re-run grouping below
+	
+	-- Build grouped list similar to DeleteJunkCheck but using vendor criteria
+	local grouped = {}
+	for bag = 0, 4 do
+		for slot = 1, GetContainerNumSlots(bag) do
+			local itemID = GetContainerItemID(bag, slot)
+			if itemID and not E.db.bags.IgnoreVendList[itemID] then
+				local name, link, rarity, _, _, iType, _, _, _, _, itemPrice = GetItemInfo(itemID)
+				if itemPrice and itemPrice > 0 then
+					-- Determine if this item is selected by vendor-grays settings:
+					local isJunk = (rarity == 0)
+					local sellValueGold = E.db.bags.vendorGrays.gold
+					local sellValueSilver = E.db.bags.vendorGrays.silver
+					local sellweapon = E.db.bags.vendorGrays.weapon
+					local sellarmor = E.db.bags.vendorGrays.armor
+					local sellvalueCopper = (sellValueGold or 0) * 10000 + (sellValueSilver or 0) * 100
+					local isValuableGear = ((iType == "Weapon" and sellweapon) or (iType == "Armor" and sellarmor)) and itemPrice and (itemPrice > sellvalueCopper)
+					local isGreenEnabled = E.db.bags.vendorGrays.enablegreen and (rarity == 2)
+					local isBlueEnabled = E.db.bags.vendorGrays.enableblue and (rarity == 3)
+					local isNotQuestItem = (iType ~= "Quest")
+					local isWorthless = (itemPrice == 0)
+	
+					if (isJunk or isValuableGear) and (isGreenEnabled or isBlueEnabled or isJunk) and isNotQuestItem and not isWorthless then
+						local stackCount = select(2, GetContainerItemInfo(bag, slot)) or 1
+						local stackValue = (itemPrice or 0) * stackCount
+	
+						if not grouped[itemID] then
+							grouped[itemID] = {
+								itemID = itemID,
+								link = link,
+								value = 0,
+								stackCount = 0,
+								slots = {}
+							}
+						end
+	
+						grouped[itemID].value = grouped[itemID].value + stackValue
+						grouped[itemID].stackCount = grouped[itemID].stackCount + stackCount
+						tinsert(grouped[itemID].slots, { bag = bag, slot = slot })
+					end
+				end
+			end
+		end
+	end
+	
+	local deletelist = {}
+	for _, item in pairs(grouped) do
+		tinsert(deletelist, item)
+	end
 
     B:ShowJunkConfirmFrame(deletelist, "vendor")
 end
 
--- create / show the list frame
-local ignoreFrame
-local rowButtons = {}
+	-- create / show the list frame
+	local ignoreFrame
+	local rowButtons = {}
 
 local function ColorByRarity(name, itemID)
-local rarity = select(3, GetItemInfo(itemID))
-if rarity == 0 then return "|cFF808080"..name.."|r" end
-if rarity == 1 then return "|cFFFFFFFF"..name.."|r" end
-if rarity == 2 then return "|cFF00FF00"..name.."|r" end
-if rarity == 3 then return "|cFF0000FF"..name.."|r" end
-return name
+	local rarity = select(3, GetItemInfo(itemID))
+	if rarity == 0 then return "|cFF808080"..name.."|r" end
+	if rarity == 1 then return "|cFFFFFFFF"..name.."|r" end
+	if rarity == 2 then return "|cFF00FF00"..name.."|r" end
+	if rarity == 3 then return "|cFF0000FF"..name.."|r" end
+	return name
 end
 
 local function RemoveIgnoredItem(itemID)
-E.db.bags.IgnoreVendList[itemID] = nil
-if B and B.UpdateListRemove then B:UpdateListRemove(itemID) end -- optional update call like original
---if ignoreFrame and ignoreFrame:IsShown() then ignoreFrame:Refresh() end
+	E.db.bags.IgnoreVendList[itemID] = nil
+	if B and B.UpdateListRemove then B:UpdateListRemove(itemID) end -- optional update call like original
+	--if ignoreFrame and ignoreFrame:IsShown() then ignoreFrame:Refresh() end
 end
 
 
 function B:BringIgnoreToFront()
-local f = ignoreFrame
-if not f then return end
-
-if f and not f.__opaqueBg then
-local bg = f:CreateTexture(nil, "BACKGROUND", nil, -7) -- deep background layer
-bg:SetAllPoints(f)
-bg:SetColorTexture(0, 0, 0, 1) -- black, fully opaque (alpha=1)
-f.__opaqueBg = bg
-end
-
--- Ensure it's parented to UIParent (top-level)
-f:SetParent(UIParent)
-
--- Use a high-but-safe strata
-f:SetFrameStrata("FULLSCREEN_DIALOG") -- DIALOG or FULLSCREEN_DIALOG recommended
-
--- Use a high frame level so it sits above most frames in the same strata
-local level = math.max(100, (f:GetFrameLevel() or 0) + 50)
-f:SetFrameLevel(level)
-
--- Make it a top-level window and bring to front
-f:SetToplevel(true)
-f:Raise()
-f:Show()
+	local f = ignoreFrame
+	if not f then return end
+	
+	if f and not f.__opaqueBg then
+	local bg = f:CreateTexture(nil, "BACKGROUND", nil, -7) -- deep background layer
+	bg:SetAllPoints(f)
+	bg:SetColorTexture(0, 0, 0, 1) -- black, fully opaque (alpha=1)
+	f.__opaqueBg = bg
+	end
+	
+	-- Ensure it's parented to UIParent (top-level)
+	f:SetParent(UIParent)
+	
+	-- Use a high-but-safe strata
+	f:SetFrameStrata("FULLSCREEN_DIALOG") -- DIALOG or FULLSCREEN_DIALOG recommended
+	
+	-- Use a high frame level so it sits above most frames in the same strata
+	local level = math.max(100, (f:GetFrameLevel() or 0) + 50)
+	f:SetFrameLevel(level)
+	
+	-- Make it a top-level window and bring to front
+	f:SetToplevel(true)
+	f:Raise()
+	f:Show()
 end
 
 function B:ShowIgnoreListFrame()
--- remember which mode the confirm frame is showing (so updates know how to rebuild)
-B._lastJunkMode = mode
-if not ignoreFrame then
-local f = CreateFrame("Frame", "ignoreFrame", UIParent, "BackdropTemplate")
-f:SetSize(420, 360)
-f:ClearAllPoints()
---f:SetToplevel(true)
---f:EnableMouse(true)
---f:SetMovable(true)
---f:RegisterForDrag("LeftButton")
---f:SetScript("OnDragStart", function(self) self:StartMoving() end)
---f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
-MakeMovable(f, "ignoreFrame")
-f:SetPoint("CENTER")
-
-f:SetBackdrop({
-  bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-  edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-  tile = true, tileSize = 32, edgeSize = 32,
-  insets = { left = 8, right = 8, top = 8, bottom = 8 },
-})
-
-
-local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-title:SetPoint("TOP", 0, -10)
-title:SetText(L["Drag items here to add to ignore list"])
-
-local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-close:SetPoint("TOPRIGHT", -6, -6)
-tinsert(UISpecialFrames, f:GetName())
-
--- Scrollframe
-local scroll = CreateFrame("ScrollFrame", "MyIgnoreListScroll", f, "UIPanelScrollFrameTemplate")
-scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -40)
-scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -30, 12)
-
-local content = CreateFrame("Frame", nil, scroll)
-content:SetSize(1, 1) -- width will be resized on populate
-scroll:SetScrollChild(content)
-f.content = content
-f.scroll = scroll
+	-- remember which mode the confirm frame is showing (so updates know how to rebuild)
+	B._lastJunkMode = mode
+	if not ignoreFrame then
+	local f = CreateFrame("Frame", "ignoreFrame", UIParent, "BackdropTemplate")
+	f:SetSize(420, 360)
+	f:ClearAllPoints()
+	--f:SetToplevel(true)
+	--f:EnableMouse(true)
+	--f:SetMovable(true)
+	--f:RegisterForDrag("LeftButton")
+	--f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+	--f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+	MakeMovable(f, "ignoreFrame")
+	f:SetPoint("CENTER")
+	
+	f:SetBackdrop({
+	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+	tile = true, tileSize = 32, edgeSize = 32,
+	insets = { left = 8, right = 8, top = 8, bottom = 8 },
+	})
+	
+	
+	local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	title:SetPoint("TOP", 0, -10)
+	title:SetText(L["Drag items here to add to ignore list"])
+	
+	local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+	close:SetPoint("TOPRIGHT", -6, -6)
+	tinsert(UISpecialFrames, f:GetName())
+	
+	-- Scrollframe
+	local scroll = CreateFrame("ScrollFrame", "MyIgnoreListScroll", f, "UIPanelScrollFrameTemplate")
+	scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -40)
+	scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -30, 12)
+	
+	local content = CreateFrame("Frame", nil, scroll)
+	content:SetSize(1, 1) -- width will be resized on populate
+	scroll:SetScrollChild(content)
+	f.content = content
+	f.scroll = scroll
 
 -- a refresh method that rebuilds rows
 function f:Refresh()
@@ -1592,116 +1592,116 @@ end
 
 
 local function GetIDFromCursorInfo(info)
-if not info then return nil end
-if type(info) == "number" then return tonumber(info) end
-if type(info) == "string" then
--- if it's an item link, try to extract ID
-local id = tonumber(string.match(info, "item:(%d+)"))
-if id then return id end
--- if you have a conversion helper, use it (uncomment if available)
--- return B:ConvertLinkToID(info)
-end
-return nil
-end
-
-local function AddItemToIgnore(itemID)
-if not itemID then return end
-
--- require a numeric item id so DB keys are always numbers
-local nID = tonumber(itemID)
-if not nID then
-    if E and E.Print then E:Print(("Invalid item id: %s"):format(tostring(itemID))) end
-    return
-end
--- Try to get item info (may be nil if not cached on 3.3.5a)
-local rawName, rawLink, rarity, _, _, iType = GetItemInfo(nID)
-local hadInfo = (rawLink ~= nil)
--- fallback placeholders when not cached
-local itemname = rawName or ("Item "..tostring(nID))
-local itemlink = rawLink or itemname
--- Validation: allow when we don't have cached info, OR when it's junk (rarity 0),
--- OR when it's green/blue armor or weapon
-local validToAdd = (not hadInfo)
-    or (rarity == 0)
-    or ((rarity == 2 or rarity == 3) and (iType == "Weapon" or iType == "Armor"))
-if not validToAdd then
-    E:Print((itemlink or itemname) .. " |cFFFFFF00You can only add Junk and Green or Blue Armor and Weapons to ignore list.|r")
-    return
-end
--- avoid duplicates using numeric key only
-if E.db and E.db.bags and E.db.bags.IgnoreVendList and E.db.bags.IgnoreVendList[nID] == nil then
-    if B and B.UpdateListAdd then
-        B:UpdateListAdd(nID, itemname)
-    else
-        -- fallback: write directly as numeric key
-        E.db.bags.IgnoreVendList[nID] = itemname
-    end
-    E:Print((itemlink or itemname) .. " |cFF00FF00added to your ignore list.|r")
-    if ignoreFrame and ignoreFrame.Refresh then ignoreFrame:Refresh() end
-else
-    E:Print((itemlink or itemname) .. " |cFFFFA500is already in the ignore list.|r")
-end
--- if the confirm dialog is open, rebuild it according to the last mode
-if B and B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() then
-if B._lastJunkMode == "vendor" then
-B:VendorGrayCheck()
-else
-B:DeleteJunkCheck()
-end
-end
-
-end
-
-local function HandleCursorDrop(self)
-local cursorType, info1 = GetCursorInfo()
-if not cursorType then return end
-if cursorType == "item" then
-local id = GetIDFromCursorInfo(info1)
-if id then
-AddItemToIgnore(id)
---skuly
-ClearCursor() -- remove the item from cursor (so it isn't dropped into world)
-end
-end
--- optionally handle other types (spell, macro) if needed
-end
-
--- catch drag & drop and mouse-up drops
-f:SetScript("OnReceiveDrag", HandleCursorDrop)
-f:SetScript("OnMouseUp", function(self, button)
-if CursorHasItem() then HandleCursorDrop(self) end
-end)
-
--- Visual feedback: highlight when a cursor item is over the frame
-f:SetScript("OnEnter", function(self)
-if CursorHasItem() then
-self.oldBackdrop = self.oldBackdrop or self:GetBackdrop()
-self:SetBackdropColor(0.2, 0.5, 0.2, 0.25)
-end
-end)
-f:SetScript("OnLeave", function(self)
-if self.oldBackdrop then
-self:SetBackdropColor(1,1,1,1)
-end
-end)
-
--- Refresh the list when item info becomes available (so names/icons update)
-f:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-f:SetScript("OnEvent", function(self, event, arg1, ...)
--- arg1 is itemID on Retail; adapt for Classic if different
-if event == "GET_ITEM_INFO_RECEIVED" and arg1 then
-if E.db.bags.IgnoreVendList[tostring(arg1)] or E.db.bags.IgnoreVendList[tonumber(arg1)] then
-if self.Refresh then self:Refresh() end
-end
-end
-end)
-
-ignoreFrame = f
-end
-
-ignoreFrame:Refresh()
-ignoreFrame:Show()
-B:BringIgnoreToFront()
+	if not info then return nil end
+	if type(info) == "number" then return tonumber(info) end
+	if type(info) == "string" then
+	-- if it's an item link, try to extract ID
+	local id = tonumber(string.match(info, "item:(%d+)"))
+	if id then return id end
+	-- if you have a conversion helper, use it (uncomment if available)
+	-- return B:ConvertLinkToID(info)
+	end
+	return nil
+	end
+	
+	local function AddItemToIgnore(itemID)
+	if not itemID then return end
+	
+	-- require a numeric item id so DB keys are always numbers
+	local nID = tonumber(itemID)
+	if not nID then
+		if E and E.Print then E:Print(("Invalid item id: %s"):format(tostring(itemID))) end
+		return
+	end
+	-- Try to get item info (may be nil if not cached on 3.3.5a)
+	local rawName, rawLink, rarity, _, _, iType = GetItemInfo(nID)
+	local hadInfo = (rawLink ~= nil)
+	-- fallback placeholders when not cached
+	local itemname = rawName or ("Item "..tostring(nID))
+	local itemlink = rawLink or itemname
+	-- Validation: allow when we don't have cached info, OR when it's junk (rarity 0),
+	-- OR when it's green/blue armor or weapon
+	local validToAdd = (not hadInfo)
+		or (rarity == 0)
+		or ((rarity == 2 or rarity == 3) and (iType == "Weapon" or iType == "Armor"))
+	if not validToAdd then
+		E:Print((itemlink or itemname) .. " |cFFFFFF00You can only add Junk and Green or Blue Armor and Weapons to ignore list.|r")
+		return
+	end
+	-- avoid duplicates using numeric key only
+	if E.db and E.db.bags and E.db.bags.IgnoreVendList and E.db.bags.IgnoreVendList[nID] == nil then
+		if B and B.UpdateListAdd then
+			B:UpdateListAdd(nID, itemname)
+		else
+			-- fallback: write directly as numeric key
+			E.db.bags.IgnoreVendList[nID] = itemname
+		end
+		E:Print((itemlink or itemname) .. " |cFF00FF00added to your ignore list.|r")
+		if ignoreFrame and ignoreFrame.Refresh then ignoreFrame:Refresh() end
+	else
+		E:Print((itemlink or itemname) .. " |cFFFFA500is already in the ignore list.|r")
+	end
+	-- if the confirm dialog is open, rebuild it according to the last mode
+	if B and B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() then
+	if B._lastJunkMode == "vendor" then
+	B:VendorGrayCheck()
+	else
+	B:DeleteJunkCheck()
+	end
+	end
+	
+	end
+	
+	local function HandleCursorDrop(self)
+	local cursorType, info1 = GetCursorInfo()
+	if not cursorType then return end
+	if cursorType == "item" then
+	local id = GetIDFromCursorInfo(info1)
+	if id then
+	AddItemToIgnore(id)
+	--skuly
+	ClearCursor() -- remove the item from cursor (so it isn't dropped into world)
+	end
+	end
+	-- optionally handle other types (spell, macro) if needed
+	end
+	
+	-- catch drag & drop and mouse-up drops
+	f:SetScript("OnReceiveDrag", HandleCursorDrop)
+	f:SetScript("OnMouseUp", function(self, button)
+	if CursorHasItem() then HandleCursorDrop(self) end
+	end)
+	
+	-- Visual feedback: highlight when a cursor item is over the frame
+	f:SetScript("OnEnter", function(self)
+	if CursorHasItem() then
+	self.oldBackdrop = self.oldBackdrop or self:GetBackdrop()
+	self:SetBackdropColor(0.2, 0.5, 0.2, 0.25)
+	end
+	end)
+	f:SetScript("OnLeave", function(self)
+	if self.oldBackdrop then
+	self:SetBackdropColor(1,1,1,1)
+	end
+	end)
+	
+	-- Refresh the list when item info becomes available (so names/icons update)
+	f:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+	f:SetScript("OnEvent", function(self, event, arg1, ...)
+	-- arg1 is itemID on Retail; adapt for Classic if different
+	if event == "GET_ITEM_INFO_RECEIVED" and arg1 then
+	if E.db.bags.IgnoreVendList[tostring(arg1)] or E.db.bags.IgnoreVendList[tonumber(arg1)] then
+	if self.Refresh then self:Refresh() end
+	end
+	end
+	end)
+	
+	ignoreFrame = f
+	end
+	
+	ignoreFrame:Refresh()
+	ignoreFrame:Show()
+	B:BringIgnoreToFront()
 end
 
 
@@ -1777,30 +1777,30 @@ end
 
 
 function B:BringConfirmToFront()
-local f = B.JunkConfirmFrame
-if not f then return end
-
-if f and not f.__opaqueBg then
-local bg = f:CreateTexture(nil, "BACKGROUND", nil, -7) -- deep background layer
-bg:SetAllPoints(f)
-bg:SetColorTexture(0, 0, 0, 1) -- black, fully opaque (alpha=1)
-f.__opaqueBg = bg
-end
-
--- Ensure it's parented to UIParent (top-level)
-f:SetParent(UIParent)
-
--- Use a high-but-safe strata
-f:SetFrameStrata("FULLSCREEN_DIALOG") -- DIALOG or FULLSCREEN_DIALOG recommended
-
--- Use a high frame level so it sits above most frames in the same strata
-local level = math.max(100, (f:GetFrameLevel() or 0) + 50)
-f:SetFrameLevel(level)
-
--- Make it a top-level window and bring to front
-f:SetToplevel(true)
-f:Raise()
-f:Show()
+	local f = B.JunkConfirmFrame
+	if not f then return end
+	
+	if f and not f.__opaqueBg then
+	local bg = f:CreateTexture(nil, "BACKGROUND", nil, -7) -- deep background layer
+	bg:SetAllPoints(f)
+	bg:SetColorTexture(0, 0, 0, 1) -- black, fully opaque (alpha=1)
+	f.__opaqueBg = bg
+	end
+	
+	-- Ensure it's parented to UIParent (top-level)
+	f:SetParent(UIParent)
+	
+	-- Use a high-but-safe strata
+	f:SetFrameStrata("FULLSCREEN_DIALOG") -- DIALOG or FULLSCREEN_DIALOG recommended
+	
+	-- Use a high frame level so it sits above most frames in the same strata
+	local level = math.max(100, (f:GetFrameLevel() or 0) + 50)
+	f:SetFrameLevel(level)
+	
+	-- Make it a top-level window and bring to front
+	f:SetToplevel(true)
+	f:Raise()
+	f:Show()
 end
 
 
