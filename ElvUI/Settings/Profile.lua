@@ -165,9 +165,11 @@ P.bags = {
 	moneyCoins = true,
 	junkIcon = false,
 	junkDesaturate = true,
+	IgnoreVendList = {},
 	unlearnedVanityIcon = false,
 	unlearnedWardrobeIcon = false,
 	ignoredItems = {},
+	positions = {},
 	itemLevel = true,
 	itemLevelThreshold = 1,
 	itemLevelFont = "Homespun",
@@ -209,12 +211,15 @@ P.bags = {
 		}
 	},
 	vendorGrays = {
-		enable = false,
+		enable = true,
 		interval = 0.2,
-		details = false,
+		details = true,
 		progressBar = true,
-		gold = 1,
+		weapon = true,
+		armor = true,
+		gold = 0,
 		silver = 0
+		
 	},
 	split = {
 		bagSpacing = 5,

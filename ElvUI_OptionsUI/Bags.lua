@@ -7,6 +7,7 @@ local gsub, match = string.gsub, string.match
 
 local GameTooltip = _G["GameTooltip"]
 
+
 E.Options.args.bags = {
 	type = "group",
 	name = L["BAGSLOT"],
@@ -693,32 +694,32 @@ E.Options.args.bags = {
 		vendorGrays = {
 			order = 8,
 			type = "group",
-			name = L["Auto-sell"],
+			name = L["Sell Assist"],
 			get = function(info) return E.db.bags.vendorGrays[info[#info]] end,
 			set = function(info, value) E.db.bags.vendorGrays[info[#info]] = value B:UpdateSellFrameSettings() end,
 			args = {
 				header = {
 					order = 1,
 					type = "header",
-					name = L["Vendor Grays"]
+					name = L["Sell Assistant"]
 				},
 				enable = {
 					order = 2,
 					type = "toggle",
 					name = L["Enable"],
-					desc = L["Automatically vendor gray items when visiting a vendor."]
+					desc = L["Helps sell items when visiting a Merchant."]
 				},
 				enablegreen = {
 					order = 3,
 					type = "toggle",
 					name = L["Include Greens"],
-					desc = L["Automatically vendor green items when visiting a vendor."]
+					desc = L["Sell green items when visiting a Merchant."]
 				},
 				enableblue = {
 					order = 4,
 					type = "toggle",
 					name = L["Include Blues"],
-					desc = L["Automatically vendor blue items when visiting a vendor."]
+					desc = L["Sell blue items when visiting a Merchant."]
 				},
 				interval = {
 					order = 5,
@@ -771,11 +772,17 @@ E.Options.args.bags = {
 							min = 0, max = 99, step = 1,
 						}
 					}
-				}
-			}
+				},
+				spacer = {
+					order = 11,
+					type = "description",
+					name = " "
+				},
+
+			},
 		},
 		bagSortingGroup = {
-			order = 9,
+			order = 10,
 			type = "group",
 			name = L["Bag Sorting"],
 			disabled = function() return not E.Bags.Initialized end,
@@ -870,7 +877,7 @@ E.Options.args.bags = {
 			}
 		},
 		search_syntax = {
-			order = 10,
+			order = 11,
 			type = "group",
 			name = L["Search Syntax"],
 			disabled = function() return not E.Bags.Initialized end,
