@@ -217,9 +217,10 @@ P.bags = {
 		progressBar = true,
 		weapon = true,
 		armor = true,
+		sortaftersell = true,
 		gold = 0,
-		silver = 0
-		
+		silver = 0,
+		sortaftersell = true
 	},
 	split = {
 		bagSpacing = 5,
