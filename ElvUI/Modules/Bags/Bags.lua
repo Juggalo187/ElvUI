@@ -1141,27 +1141,24 @@ function hidebtnshowcopy(deletelist)
     B.JunkConfirmFrame:Hide()
     frame.confirmBtn:SetText("Delete Items")
     E:Print("Items Deleted")
-    
     -- Delete the items
-    for _, item in ipairs(deletelist) do
+    for k, item in ipairs(deletelist) do
         if item.slots then
             for _, slotInfo in ipairs(item.slots) do
                 PickupContainerItem(slotInfo.bag, slotInfo.slot)
                 DeleteCursorItem()
             end
         end
+			deletelist[k] = nil
     end
-    
-    -- Clear the list
-    for i in pairs(deletelist) do
-        deletelist[i] = nil
-    end
+
+	
     
     -- Update the confirmation frame to show the new empty list
     B:ShowJunkConfirmFrame(deletelist, "delete")
-    local sortaftersell = E.db.bags.vendorGrays.sortaftersell
+    sortaftersell = E.db.bags.vendorGrays.sortaftersell
     -- Delay the sorting slightly to ensure deletion is complete and UI is updated
-	if sortaftersell and sortaftersell == true then
+	if sortaftersell then
 		if myAceTimer then
 				GCD_Update_Timer = myAceTimer:ScheduleTimer(function()
 					B:CommandDecorator(B.SortBags, "bags")()
@@ -1596,14 +1593,6 @@ function B:VendorGrays()
     self.SellFrame.statusbar.ValueText:SetFormattedText("0 / %d", itemCount)
 
     self.SellFrame:Show()
-    
-    if myAceTimer then
-		if sortaftersell == true then
-			GCD_Update_Timer = myAceTimer:ScheduleTimer(function()
-				B:CommandDecorator(B.SortBags, "bags")()
-			end, GCD_Timer or 1)  -- Use default delay of 1second if GCD_Timer is nil
-		end
-    end
 end
 
 function B:VendorGrayCheck()
@@ -2686,6 +2675,14 @@ function B.VendorGreys_OnUpdate(self, elapsed)
 		info.goldGained = info.goldGained + goldGained
 
 		if lastItem then
+			sortaftersell = E.db.bags.vendorGrays.sortaftersell
+			if myAceTimer then
+					if sortaftersell then
+						GCD_Update_Timer = myAceTimer:ScheduleTimer(function()
+							B:CommandDecorator(B.SortBags, "bags")()
+						end, GCD_Timer or 1)  -- Use default delay of 1second if GCD_Timer is nil
+					end
+			end
 			self:Hide()
 
 			if info.goldGained > 0 then
