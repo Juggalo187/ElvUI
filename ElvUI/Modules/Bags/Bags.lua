@@ -76,7 +76,7 @@ local sellweapon
 local sellarmor
 local sortaftersell
 local IgnoreVendList = {}
-local deletelist = {}
+local CustomSellList = {}
 local GCD_Timer = 1
 local GCD_Update_Timer
 local myAceTimer = LibStub("AceTimer-3.0")
@@ -957,6 +957,21 @@ function B:OnEvent(event, ...)
 		end
 	elseif event == "BAG_UPDATE" then
 		local bag = ...
+		
+		 -- If at merchant and vendor grays is enabled
+        if MerchantFrame and MerchantFrame:IsShown() and E.db.bags.vendorGrays.enable then
+            -- If confirmation frame is already open, refresh it
+            if B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() and B._lastJunkMode == "vendor" then
+                B:VendorGrayCheck()
+            else
+                -- If frame is not open yet, check if we now have items to sell
+                local itemCount = B:GetGraysInfo()
+                if itemCount > 0 then
+                    B:VendorGrayCheck() -- This will open the frame since items are now available
+                end
+            end
+        end
+		
 		if bag == KEYRING_CONTAINER then
 			for slotID = 1, GetKeyRingSize() do
 				B:UpdateKeySlot(slotID)
@@ -1087,50 +1102,44 @@ function B:FormatMoney(amount)
 end
 
 function B:GetGraysInfo()
-	if #self.SellFrame.Info.itemList > 0 then
-		twipe(self.SellFrame.Info.itemList)
-	end
+    local itemList = {} -- Local to this function
+    local value = 0
+    sellValueGold = E.db.bags.vendorGrays.gold
+    sellValueSilver = E.db.bags.vendorGrays.silver
+    sellweapon = E.db.bags.vendorGrays.weapon
+    sellarmor = E.db.bags.vendorGrays.armor
+    CustomSellList = E.db.bags.CustomSellList
+    sortaftersell = E.db.bags.vendorGrays.sortaftersell
+    
+    for bag = 0, 4 do
+        for slot = 1, GetContainerNumSlots(bag) do
+            local itemID = GetContainerItemID(bag, slot)
 
-	itemList = self.SellFrame.Info.itemList
-	value = 0
-	sellValueGold = E.db.bags.vendorGrays.gold
-	sellValueSilver = E.db.bags.vendorGrays.silver
-	sellweapon = E.db.bags.vendorGrays.weapon
-	sellarmor = E.db.bags.vendorGrays.armor
-	sortaftersell = E.db.bags.vendorGrays.sortaftersell
-	
-	local scanTooltip
-	for bag = 0, 4 do
-		for slot = 1, GetContainerNumSlots(bag) do
-			local itemID = GetContainerItemID(bag, slot)
+            if itemID then
+                local name, link, rarity, _, _, iType, _, _, _, _, itemPrice = GetItemInfo(itemID)
+                local sellvalueCopper = (sellValueGold * 10000) + (sellValueSilver * 100)
+                local isJunk = (rarity == 0)
+                local isValuableGear = (iType == "Weapon" and sellweapon) or (iType == "Armor" and sellarmor) and itemPrice and (itemPrice > sellvalueCopper)
+                local isGreenEnabled = self.SellFrame.Info.enablegreen and (rarity == 2)
+                local isBlueEnabled = self.SellFrame.Info.enableblue and (rarity == 3)
+                local isNotQuestItem = (iType ~= "Quest")
+                local isWorthless = (itemPrice == 0)
+                local ignored = E.db.bags.IgnoreVendList[itemID] or E.db.bags.IgnoreVendList[tostring(itemID)]
+                local onSellList = E.db.bags.CustomSellList and (E.db.bags.CustomSellList[itemID] or E.db.bags.CustomSellList[tostring(itemID)])
+                local isSellEnabled = E.db.bags.vendorGrays.enable
+                
+                if isSellEnabled and (not ignored and (isJunk or onSellList or (isValuableGear and (isGreenEnabled or isBlueEnabled))) and isNotQuestItem and not isWorthless) then
+                    local stackCount = select(2, GetContainerItemInfo(bag, slot)) or 1
+                    itemPrice = itemPrice * stackCount
+                
+                    value = value + itemPrice
+                    tinsert(itemList, {bag, slot, link, itemPrice, stackCount})
+                end
+            end
+        end
+    end
 
-			if itemID then
-				local name, link, rarity, _, _, iType, _, _, _, _, itemPrice = GetItemInfo(itemID)
-				local sellvalueCopper = (sellValueGold * 10000) + (sellValueSilver * 100)
-				local isJunk = (rarity == 0)
-				local isValuableGear = (iType == "Weapon" and sellweapon) or (iType == "Armor" and sellarmor) and itemPrice and (itemPrice > sellvalueCopper)
-				local isGreenEnabled = self.SellFrame.Info.enablegreen and (rarity == 2)
-				local isBlueEnabled = self.SellFrame.Info.enableblue and (rarity == 3)
-				local isNotQuestItem = (iType ~= "Quest")
-				local isWorthless = (itemPrice == 0)
-				local ignored = E.db.bags.IgnoreVendList[itemID]
-				local isSellEnabled = E.db.bags.vendorGrays.enable
-				
-				
-				
-				
-				if isSellEnabled and (not ignored and (isJunk or (isValuableGear and (isGreenEnabled or isBlueEnabled))) and isNotQuestItem and not isWorthless) then
-					local stackCount = select(2, GetContainerItemInfo(bag, slot)) or 1
-					itemPrice = itemPrice * stackCount
-				
-					value = value + itemPrice
-					tinsert(itemList, {bag, slot, link, itemPrice, stackCount})
-				end
-			end
-		end
-	end
-
-	return #itemList, value
+    return #itemList, value
 end
 
 function hidebtnshowcopy(deletelist)
@@ -1141,6 +1150,7 @@ function hidebtnshowcopy(deletelist)
     B.JunkConfirmFrame:Hide()
     frame.confirmBtn:SetText("Delete Items")
     E:Print("Items Deleted")
+    
     -- Delete the items
     for k, item in ipairs(deletelist) do
         if item.slots then
@@ -1149,32 +1159,32 @@ function hidebtnshowcopy(deletelist)
                 DeleteCursorItem()
             end
         end
-			deletelist[k] = nil
     end
-
-	
     
     -- Update the confirmation frame to show the new empty list
-    B:ShowJunkConfirmFrame(deletelist, "delete")
+    B:ShowJunkConfirmFrame({}, "delete")
     sortaftersell = E.db.bags.vendorGrays.sortaftersell
+    
     -- Delay the sorting slightly to ensure deletion is complete and UI is updated
-	if sortaftersell then
-		if myAceTimer then
-				GCD_Update_Timer = myAceTimer:ScheduleTimer(function()
-					B:CommandDecorator(B.SortBags, "bags")()
-				end, 1)  -- Longer delay to ensure everything is processed
-		end
-	end
+    if sortaftersell then
+        if myAceTimer then
+            GCD_Update_Timer = myAceTimer:ScheduleTimer(function()
+                B:CommandDecorator(B.SortBags, "bags")()
+            end, 1)  -- Longer delay to ensure everything is processed
+        end
+    end
 end
 
 StaticPopupDialogs["CONFIRM_DELETE_ITEMS"] =  {
-  text = "Are you sure you want to delete these items?",
-  button1 = "Yes",
-  button2 = "No",
-  OnAccept = function(self) hidebtnshowcopy(self.data) end,
-  timeout = 0,
-  whileDead = true,
-  hideOnEscape = true,
+    text = "Are you sure you want to delete these items?",
+    button1 = "Yes",
+    button2 = "No",
+    OnAccept = function(self, data) 
+        hidebtnshowcopy(data) 
+    end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
 }
 
 local function ColorByRarity(name, itemID)
@@ -1186,391 +1196,252 @@ local function ColorByRarity(name, itemID)
 	return name
 end
 
---[[
-function B:ShowJunkConfirmFrame(deletelist, mode)
-	local frame = B.JunkConfirmFrame
-	if not frame or not frame.content then return end
-	-- normalize and store mode so other code knows what to rebuild
-	mode = (mode == "vendor") and "vendor" or "delete"
-	B._lastJunkMode = mode
-	
-	-- base title (keep whatever you already used in CreateJunkConfirmFrame)
-	local baseTitle = "|cFFFFCC00Click an item to add it to ignore list|r"
-	
-	-- ensure each item.value exists (fallback compute from slots) and compute total
-	local totalValue = 0
-	if deletelist and #deletelist > 0 then
-		for _, item in ipairs(deletelist) do
-			if not item.value or item.value == 0 then
-				local total = 0
-					if item.slots then
-						for _, slotInfo in ipairs(item.slots) do
-							local id = GetContainerItemID(slotInfo.bag, slotInfo.slot)
-							if id then
-								local _, _, _, _, _, _, _, _, _, _, itemPrice = GetItemInfo(id)
-								local _, stackCount = GetContainerItemInfo(slotInfo.bag, slotInfo.slot)
-								total = total + (itemPrice or 0) * (stackCount or 1)
-							end
-						end
-					end
-				item.value = total
-			end
-			totalValue = totalValue + (item.value or 0)
-		end
-		else
-		deletelist = {}
-	end
-	if totalValue == 0 then
-	frame.title:SetText("No Junk to Delete.")
-	else
-	frame.title:SetText(baseTitle .. "\nTotal: " .. B:FormatMoney(totalValue))
-	end
-	
-	
-	-- hide old children
-	for _, child in ipairs({frame.content:GetChildren()}) do
-		child:Hide()
-	end
-	
-	-- layout constants
-	local rowHeight = 24
-	local contentWidth = 340
-	local valueWidth = 110   -- width for the formatted money text (adjust)
-	local stackWidth = 56    -- width for the "[xN]" text (adjust)
-	local padding = 8
-	local topPadding = 5
-	local totalHeight = math.max(1, (#deletelist * rowHeight) + topPadding)
-	
-	-- ensure content frame size
-	frame.content:SetSize(contentWidth, totalHeight)
 
-	for i, item in ipairs(deletelist) do
-    -- Ensure item.value exists (fallback compute from slots)
-    if not item.value or item.value == 0 then
-        local total = 0
-        if item.slots then
-            for _, slotInfo in ipairs(item.slots) do
-                local id = GetContainerItemID(slotInfo.bag, slotInfo.slot)
-                if id then
-                    local _, _, _, _, _, _, _, _, _, _, itemPrice = GetItemInfo(id)
-                    local _, stackCount = GetContainerItemInfo(slotInfo.bag, slotInfo.slot)
-                    total = total + (itemPrice or 0) * (stackCount or 1)
+function B:ShowJunkConfirmFrame(deletelist, mode)
+    local frame = B.JunkConfirmFrame
+    if not frame or not frame.content then return end
+    
+    -- normalize and store mode so other code knows what to rebuild
+    mode = (mode == "vendor") and "vendor" or "delete"
+    B._lastJunkMode = mode
+    
+    -- Check if merchant is open
+    local merchantOpen = MerchantFrame and MerchantFrame:IsShown()
+    
+    -- base title (keep whatever you already used in CreateJunkConfirmFrame)
+    local baseTitle = "|cFFFFCC00Left Click an item to add it to ignore list|r"
+    
+    -- ensure each item.value exists (fallback compute from slots) and compute total
+    local totalValue = 0
+    if deletelist and #deletelist > 0 then
+        for _, item in ipairs(deletelist) do
+            if not item.value or item.value == 0 then
+                local total = 0
+                    if item.slots then
+                        for _, slotInfo in ipairs(item.slots) do
+                            local id = GetContainerItemID(slotInfo.bag, slotInfo.slot)
+                            if id then
+                                local _, _, _, _, _, _, _, _, _, _, itemPrice = GetItemInfo(id)
+                                local _, stackCount = GetContainerItemInfo(slotInfo.bag, slotInfo.slot)
+                                total = total + (itemPrice or 0) * (stackCount or 1)
+                            end
+                        end
+                    end
+                item.value = total
+            end
+            totalValue = totalValue + (item.value or 0)
+        end
+        
+        -- SORT ITEMS BY VALUE (HIGHEST FIRST)
+        table.sort(deletelist, function(a, b)
+            return (a.value or 0) > (b.value or 0)
+        end)
+    else
+        deletelist = {}
+    end
+    
+    if totalValue == 0 then
+        frame.title:SetText("No items to sell or delete.")
+    else
+        frame.title:SetText(baseTitle .. "\nTotal: " .. B:FormatMoney(totalValue))
+    end
+    
+    -- hide old children
+    for _, child in ipairs({frame.content:GetChildren()}) do
+        child:Hide()
+    end
+    
+    -- layout constants
+    local rowHeight = 24
+    local contentWidth = 340
+    local valueWidth = 110
+    local stackWidth = 56
+    local padding = 8
+    local topPadding = 5
+    local totalHeight = math.max(1, (#deletelist * rowHeight) + topPadding)
+    
+    -- ensure content frame size
+    frame.content:SetSize(contentWidth, totalHeight)
+
+    for i, item in ipairs(deletelist) do
+        -- Ensure item.value exists (fallback compute from slots)
+        if not item.value or item.value == 0 then
+            local total = 0
+            if item.slots then
+                for _, slotInfo in ipairs(item.slots) do
+                    local id = GetContainerItemID(slotInfo.bag, slotInfo.slot)
+                    if id then
+                        local _, _, _, _, _, _, _, _, _, _, itemPrice = GetItemInfo(id)
+                        local _, stackCount = GetContainerItemInfo(slotInfo.bag, slotInfo.slot)
+                        total = total + (itemPrice or 0) * (stackCount or 1)
+                    end
                 end
             end
+            item.value = total
         end
-        item.value = total
-    end
-	--skuly
-	local name, link, icon = select(1, GetItemInfo(item.itemID)), select(2, GetItemInfo(item.itemID)), GetItemIcon(item.itemID)
-	local displayName = name or ("Item "..tostring(item.itemID))
-    local colored = ColorByRarity(displayName, item.itemID)
-    -- create the row button
-    local btn = CreateFrame("Button", nil, frame.content)
-    btn:SetSize(contentWidth, rowHeight)
-    btn:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 5, -topPadding - (i - 1) * rowHeight)
+        
+        local name, link, icon = select(1, GetItemInfo(item.itemID)), select(2, GetItemInfo(item.itemID)), GetItemIcon(item.itemID)
+        local displayName = name or ("Item "..tostring(item.itemID))
+        local colored = ColorByRarity(displayName, item.itemID)
+        
+        -- create the row button
+        local btn = CreateFrame("Button", nil, frame.content)
+        btn:SetSize(contentWidth, rowHeight)
+        btn:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 5, -topPadding - (i - 1) * rowHeight)
 
-	
-	btn.icon = btn:CreateTexture(nil, "BACKGROUND")
-	btn.icon:SetSize(20, 20)
-	btn.icon:SetPoint("LEFT", 2, 0)
-	if icon then btn.icon:SetTexture(icon) else btn.icon:SetTexture(nil) end
-	
+        btn.icon = btn:CreateTexture(nil, "BACKGROUND")
+        btn.icon:SetSize(20, 20)
+        btn.icon:SetPoint("LEFT", 2, 0)
+        if icon then btn.icon:SetTexture(icon) else btn.icon:SetTexture(nil) end
+        
         -- Item link (left-aligned)
-	local linkText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	linkText:SetPoint("LEFT", btn, "LEFT", 24, 0)
-	linkText:SetText(item.link or "Unknown Item")
-	linkText:SetText(colored)
-	
-	-- Stack count (right of linkText)
-	local stackText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	stackText:SetPoint("LEFT", linkText, "RIGHT", 3, 0)
-	stackText:SetText("|cFF00FF00[x" .. item.stackCount .. "]|r")
-	
-	-- Value (right of stackText)
-	local valueText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	valueText:SetPoint("LEFT", stackText, "RIGHT", 3, 0)
-	valueText:SetText(GetCoinTextureString(item.value))
+        local linkText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        linkText:SetPoint("LEFT", btn, "LEFT", 24, 0)
+        linkText:SetText(item.link or "Unknown Item")
+        linkText:SetText(colored)
+        
+        -- Stack count (right of linkText)
+        local stackText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        stackText:SetPoint("LEFT", linkText, "RIGHT", 3, 0)
+        stackText:SetText("|cFF00FF00[x" .. item.stackCount .. "]|r")
+        
+        -- Value (right of stackText)
+        local valueText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        valueText:SetPoint("LEFT", stackText, "RIGHT", 3, 0)
+        valueText:SetText(GetCoinTextureString(item.value))
 
-    -- Tooltip
-    btn:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-        GameTooltip:SetText(item.link or ("item:" .. tostring(item.itemID or "unknown")))
-        GameTooltip:AddLine("Stack: " .. tostring(item.stackCount or 0))
-        GameTooltip:AddLine("Total Value: " .. B:FormatMoney(item.value or 0), 1, 1, 1)
-        GameTooltip:Show()
-    end)
-	-- mouseover tooltip
-      btn:SetScript("OnEnter", function(self)
-        if item.link then GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink(item.link); GameTooltip:Show() end
-      end)
-    btn:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-		end)
+        -- Tooltip
+        btn:SetScript("OnEnter", function()
+            GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
+            GameTooltip:SetText(item.link or ("item:" .. tostring(item.itemID or "unknown")))
+            GameTooltip:AddLine("Stack: " .. tostring(item.stackCount or 0))
+            GameTooltip:AddLine("Total Value: " .. B:FormatMoney(item.value or 0), 1, 1, 1)
+            GameTooltip:Show()
+        end)
+        
+        -- mouseover tooltip
+        btn:SetScript("OnEnter", function(self)
+            if item.link then GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink(item.link); GameTooltip:Show() end
+        end)
+        
+        btn:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
 
-    -- Ignore on click
-    btn:SetScript("OnClick", function()
-	local itemID = item.itemID
-	if not itemID then return end
-	
-	-- friendly name fallback
-	local name = select(1, GetItemInfo(itemID)) or item.link or tostring(itemID)
-	-- add to the ignore DB (UpdateListAdd will refresh ignoreFrame if shown
-	-- and also trigger a rebuild of the confirm UI when appropriate)
-	B:UpdateListAdd(itemID, name)
-	local itemlink = select(2, GetItemInfo(itemID))
-	 E:Print((itemlink or name) .. " |cFF00FF00added to your ignore list.|r")
-	-- remove this entry from the local deletelist and rebuild the confirm UI
-	table.remove(deletelist, i)
-	B:ShowJunkConfirmFrame(deletelist, mode)
-	-- optional: open the ignore list window so user sees the result
-	B:ShowIgnoreListFrame()
-	end)
-	end
-
--- Confirm deletion / vendoring
-frame.confirmBtn:SetText(mode == "vendor" and "Sell Items" or "Delete")
-frame.confirmBtn:SetScript("OnClick", function()
-    if mode == "vendor" then
-        if not B.SellFrame then B:CreateSellFrame() end
-        local info = B.SellFrame.Info
-        twipe(info.itemList)
-		if deletelist and #deletelist > 0 then
-			for _, item in ipairs(deletelist) do
-				if item.slots then
-					for _, slotInfo in ipairs(item.slots) do
-						local bag, slot = slotInfo.bag, slotInfo.slot
-						local link = GetContainerItemLink(bag, slot)
-						local _, stackCount = GetContainerItemInfo(bag, slot)
-						local id = GetContainerItemID(bag, slot)
-						local _, _, _, _, _, _, _, _, _, _, itemPrice = GetItemInfo(id)
-						local price = (itemPrice or 0) * (stackCount or 1)
-						tinsert(info.itemList, {bag, slot, link, price, stackCount or 1})
-					end
-				end
-			end
-			else
-			deletelist = {}
-		end
-        if #info.itemList > 0 then
-            B:VendorGrays()
-        else
-            E:Print("No items to sell")
-        end
-    else
-		if deletelist and #deletelist > 0 then
-			StaticPopup_Show("CONFIRM_DELETE_ITEMS", nil, nil, deletelist)
-		else
-			E:Print("Nothing to Delete")
-			deletelist = {}
-			return
-		end
+        -- Ignore on click
+        btn:SetScript("OnClick", function()
+            local itemID = item.itemID
+            if not itemID then return end
+            
+            -- Remove from sell list if it exists there FIRST
+            local wasOnSellList = false
+            if E.db.bags.CustomSellList[itemID] or E.db.bags.CustomSellList[tostring(itemID)] then
+                B:UpdateSellListRemove(itemID)
+                wasOnSellList = true
+            end
+            
+            -- friendly name fallback
+            local name = select(1, GetItemInfo(itemID)) or item.link or tostring(itemID)
+            -- and also trigger a rebuild of the confirm UI when appropriate)
+            B:UpdateIgnoreListAdd(itemID, name)
+            local itemlink = select(2, GetItemInfo(itemID))
+            
+            if wasOnSellList then
+                E:Print((itemlink or name) .. " |cFF00FF00moved from sell list to ignore list.|r")
+            else
+                E:Print((itemlink or name) .. " |cFF00FF00added to your ignore list.|r")
+            end
+            
+            -- Instead of just rebuilding with the modified deletelist, completely refresh
+            if B._lastJunkMode == "vendor" then
+                B:VendorGrayCheck() -- Complete refresh for vendor mode
+            else
+                B:DeleteJunkCheck() -- Complete refresh for delete mode
+            end
+            
+            -- optional: open the ignore list window so user sees the result
+            B:ShowIgnoreListFrame()
+        end)
     end
 
-		frame:Hide()
-	end)
-	
-	frame:Show()
-	B:BringConfirmToFront()
-end
-]]
-
-function B:ShowJunkConfirmFrame(deletelist, mode)
-	local frame = B.JunkConfirmFrame
-	if not frame or not frame.content then return end
-	-- normalize and store mode so other code knows what to rebuild
-	mode = (mode == "vendor") and "vendor" or "delete"
-	B._lastJunkMode = mode
-	
-	-- base title (keep whatever you already used in CreateJunkConfirmFrame)
-	local baseTitle = "|cFFFFCC00Click an item to add it to ignore list|r"
-	
-	-- ensure each item.value exists (fallback compute from slots) and compute total
-	local totalValue = 0
-	if deletelist and #deletelist > 0 then
-		for _, item in ipairs(deletelist) do
-			if not item.value or item.value == 0 then
-				local total = 0
-					if item.slots then
-						for _, slotInfo in ipairs(item.slots) do
-							local id = GetContainerItemID(slotInfo.bag, slotInfo.slot)
-							if id then
-								local _, _, _, _, _, _, _, _, _, _, itemPrice = GetItemInfo(id)
-								local _, stackCount = GetContainerItemInfo(slotInfo.bag, slotInfo.slot)
-								total = total + (itemPrice or 0) * (stackCount or 1)
-							end
-						end
-					end
-				item.value = total
-			end
-			totalValue = totalValue + (item.value or 0)
-		end
-		
-		-- SORT ITEMS BY VALUE (HIGHEST FIRST)
-		table.sort(deletelist, function(a, b)
-			return (a.value or 0) > (b.value or 0)
-		end)
+    -- Confirm deletion / vendoring - Show/hide based on merchant status AND if items exist
+    if mode == "vendor" then
+    local hasItems = deletelist and #deletelist > 0
+    local merchantOpen = MerchantFrame and MerchantFrame:IsShown()
+    
+    frame.confirmBtn:SetText("Sell Items")
+    frame.confirmBtn:SetShown(merchantOpen and hasItems) -- Only show if merchant is open AND has items
+    
+    -- Add tooltip to explain why button is hidden
+    if not merchantOpen then
+        frame.merchantWarning = frame.merchantWarning or frame:CreateFontString(nil, "OVERLAY", "GameFontRed")
+        frame.merchantWarning:SetPoint("BOTTOM", frame.confirmBtn, "TOP", 0, -8)
+        frame.merchantWarning:SetText("Visit a vendor to sell items")
+        frame.merchantWarning:Show()
+    elseif not hasItems then
+        frame.merchantWarning = frame.merchantWarning or frame:CreateFontString(nil, "OVERLAY", "GameFontRed")
+        frame.merchantWarning:SetPoint("BOTTOM", frame.confirmBtn, "TOP", 0, -8)
+        frame.merchantWarning:SetText("No items to sell")
+        frame.merchantWarning:Show()
+    elseif frame.merchantWarning then
+        frame.merchantWarning:Hide()
+    end
 	else
-		deletelist = {}
-	end
-	
-	if totalValue == 0 then
-		frame.title:SetText("No Junk to Delete.")
-	else
-		frame.title:SetText(baseTitle .. "\nTotal: " .. B:FormatMoney(totalValue))
-	end
-	
-	-- hide old children
-	for _, child in ipairs({frame.content:GetChildren()}) do
-		child:Hide()
-	end
-	
-	-- layout constants
-	local rowHeight = 24
-	local contentWidth = 340
-	local valueWidth = 110   -- width for the formatted money text (adjust)
-	local stackWidth = 56    -- width for the "[xN]" text (adjust)
-	local padding = 8
-	local topPadding = 5
-	local totalHeight = math.max(1, (#deletelist * rowHeight) + topPadding)
-	
-	-- ensure content frame size
-	frame.content:SetSize(contentWidth, totalHeight)
+        frame.confirmBtn:SetText("Delete")
+        frame.confirmBtn:Show() -- Always show delete button
+        if frame.merchantWarning then
+            frame.merchantWarning:Hide()
+        end
+    end
+    
+    frame.confirmBtn:SetScript("OnClick", function()
+        if mode == "vendor" then
+            if not B.SellFrame then B:CreateSellFrame() end
+            local info = B.SellFrame.Info
+            twipe(info.itemList)
+            if deletelist and #deletelist > 0 then
+                for _, item in ipairs(deletelist) do
+                    if item.slots then
+                        for _, slotInfo in ipairs(item.slots) do
+                            local bag, slot = slotInfo.bag, slotInfo.slot
+                            local link = GetContainerItemLink(bag, slot)
+                            local _, stackCount = GetContainerItemInfo(bag, slot)
+                            local id = GetContainerItemID(bag, slot)
+                            local _, _, _, _, _, _, _, _, _, _, itemPrice = GetItemInfo(id)
+                            local price = (itemPrice or 0) * (stackCount or 1)
+                            tinsert(info.itemList, {bag, slot, link, price, stackCount or 1})
+                        end
+                    end
+                end
+            else
+                deletelist = {}
+            end
+            if #info.itemList > 0 then
+                B:VendorGrays()
+            else
+                E:Print("No items to sell")
+            end
+        else
+            if deletelist and #deletelist > 0 then
+                StaticPopup_Show("CONFIRM_DELETE_ITEMS", nil, nil, deletelist)
+            else
+                E:Print("Nothing to Delete")
+                deletelist = {}
+                return
+            end
+        end
 
-	for i, item in ipairs(deletelist) do
-		-- Ensure item.value exists (fallback compute from slots)
-		if not item.value or item.value == 0 then
-			local total = 0
-			if item.slots then
-				for _, slotInfo in ipairs(item.slots) do
-					local id = GetContainerItemID(slotInfo.bag, slotInfo.slot)
-					if id then
-						local _, _, _, _, _, _, _, _, _, _, itemPrice = GetItemInfo(id)
-						local _, stackCount = GetContainerItemInfo(slotInfo.bag, slotInfo.slot)
-						total = total + (itemPrice or 0) * (stackCount or 1)
-					end
-				end
-			end
-			item.value = total
-		end
-		
-		local name, link, icon = select(1, GetItemInfo(item.itemID)), select(2, GetItemInfo(item.itemID)), GetItemIcon(item.itemID)
-		local displayName = name or ("Item "..tostring(item.itemID))
-		local colored = ColorByRarity(displayName, item.itemID)
-		
-		-- create the row button
-		local btn = CreateFrame("Button", nil, frame.content)
-		btn:SetSize(contentWidth, rowHeight)
-		btn:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 5, -topPadding - (i - 1) * rowHeight)
-
-		btn.icon = btn:CreateTexture(nil, "BACKGROUND")
-		btn.icon:SetSize(20, 20)
-		btn.icon:SetPoint("LEFT", 2, 0)
-		if icon then btn.icon:SetTexture(icon) else btn.icon:SetTexture(nil) end
-		
-		-- Item link (left-aligned)
-		local linkText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-		linkText:SetPoint("LEFT", btn, "LEFT", 24, 0)
-		linkText:SetText(item.link or "Unknown Item")
-		linkText:SetText(colored)
-		
-		-- Stack count (right of linkText)
-		local stackText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-		stackText:SetPoint("LEFT", linkText, "RIGHT", 3, 0)
-		stackText:SetText("|cFF00FF00[x" .. item.stackCount .. "]|r")
-		
-		-- Value (right of stackText)
-		local valueText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-		valueText:SetPoint("LEFT", stackText, "RIGHT", 3, 0)
-		valueText:SetText(GetCoinTextureString(item.value))
-
-		-- Tooltip
-		btn:SetScript("OnEnter", function()
-			GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-			GameTooltip:SetText(item.link or ("item:" .. tostring(item.itemID or "unknown")))
-			GameTooltip:AddLine("Stack: " .. tostring(item.stackCount or 0))
-			GameTooltip:AddLine("Total Value: " .. B:FormatMoney(item.value or 0), 1, 1, 1)
-			GameTooltip:Show()
-		end)
-		
-		-- mouseover tooltip
-		btn:SetScript("OnEnter", function(self)
-			if item.link then GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink(item.link); GameTooltip:Show() end
-		end)
-		
-		btn:SetScript("OnLeave", function()
-			GameTooltip:Hide()
-		end)
-
-		-- Ignore on click
-		btn:SetScript("OnClick", function()
-			local itemID = item.itemID
-			if not itemID then return end
-			
-			-- friendly name fallback
-			local name = select(1, GetItemInfo(itemID)) or item.link or tostring(itemID)
-			-- add to the ignore DB (UpdateListAdd will refresh ignoreFrame if shown
-			-- and also trigger a rebuild of the confirm UI when appropriate)
-			B:UpdateListAdd(itemID, name)
-			local itemlink = select(2, GetItemInfo(itemID))
-			E:Print((itemlink or name) .. " |cFF00FF00added to your ignore list.|r")
-			-- remove this entry from the local deletelist and rebuild the confirm UI
-			-- We need to find the actual position in the original deletelist since we sorted it
-			for j, originalItem in ipairs(deletelist) do
-				if originalItem.itemID == itemID then
-					table.remove(deletelist, j)
-					break
-				end
-			end
-			B:ShowJunkConfirmFrame(deletelist, mode)
-			-- optional: open the ignore list window so user sees the result
-			B:ShowIgnoreListFrame()
-		end)
-	end
-
-	-- Confirm deletion / vendoring
-	frame.confirmBtn:SetText(mode == "vendor" and "Sell Items" or "Delete")
-	frame.confirmBtn:SetScript("OnClick", function()
-		if mode == "vendor" then
-			if not B.SellFrame then B:CreateSellFrame() end
-			local info = B.SellFrame.Info
-			twipe(info.itemList)
-			if deletelist and #deletelist > 0 then
-				for _, item in ipairs(deletelist) do
-					if item.slots then
-						for _, slotInfo in ipairs(item.slots) do
-							local bag, slot = slotInfo.bag, slotInfo.slot
-							local link = GetContainerItemLink(bag, slot)
-							local _, stackCount = GetContainerItemInfo(bag, slot)
-							local id = GetContainerItemID(bag, slot)
-							local _, _, _, _, _, _, _, _, _, _, itemPrice = GetItemInfo(id)
-							local price = (itemPrice or 0) * (stackCount or 1)
-							tinsert(info.itemList, {bag, slot, link, price, stackCount or 1})
-						end
-					end
-				end
-			else
-				deletelist = {}
-			end
-			if #info.itemList > 0 then
-				B:VendorGrays()
-			else
-				E:Print("No items to sell")
-			end
-		else
-			if deletelist and #deletelist > 0 then
-				StaticPopup_Show("CONFIRM_DELETE_ITEMS", nil, nil, deletelist)
-			else
-				E:Print("Nothing to Delete")
-				deletelist = {}
-				return
-			end
-		end
-
-		frame:Hide()
-	end)
-	
-	frame:Show()
-	B:BringConfirmToFront()
+        frame:Hide()
+        if CustomSellFrame and CustomSellFrame.Refresh then
+            CustomSellFrame:Refresh()
+        end
+        if ignoreFrame then
+            ignoreFrame:Hide()
+        end
+    end)
+    
+    frame:Show()
+    B:BringConfirmToFront()
 end
 
 function B:VendorGrays()
@@ -1596,88 +1467,82 @@ function B:VendorGrays()
 end
 
 function B:VendorGrayCheck()
-	if not E.db.bags.vendorGrays.enable then return end
-	if JunkConfirmFrame and JunkConfirmFrame:IsShown() then B.JunkConfirmFrame:Hide() end
-	local itemCount, value = B:GetGraysInfo()
-	
-		if itemCount == 0 then
-		E:Print(L["No items to sell"])
-		return
-		end
-	
-	-- If merchant is not shown, use the existing static popup flow
-	if not MerchantFrame:IsShown() then
-		E.PopupDialogs.DELETE_GRAYS.Money = value
-		E:StaticPopup_Show("DELETE_GRAYS")
-		return
-	end
-	
-	-- Merchant is open -> build grouped deletelist and show confirmation UI for vendoring
-	local flatList = {}
-	-- B:GetGraysInfo built B.SellFrame.Info.itemList already? It returns itemList and value,
-	-- but to be safe, call it and receive its itemList. We'll reconstruct grouped list from that itemList.
-	local _, _ = B:GetGraysInfo() -- populates a local itemList inside the function; we instead re-run grouping below
-	
-	-- Build grouped list similar to DeleteJunkCheck but using vendor criteria
-	local grouped = {}
-	for bag = 0, 4 do
-		for slot = 1, GetContainerNumSlots(bag) do
-			local itemID = GetContainerItemID(bag, slot)
-			if itemID and not E.db.bags.IgnoreVendList[itemID] then
-				local name, link, rarity, _, _, iType, _, _, _, _, itemPrice = GetItemInfo(itemID)
-				if itemPrice and itemPrice > 0 then
-					-- Determine if this item is selected by vendor-grays settings:
-					local isJunk = (rarity == 0)
-					sellValueGold = E.db.bags.vendorGrays.gold
-					sellValueSilver = E.db.bags.vendorGrays.silver
-					sellweapon = E.db.bags.vendorGrays.weapon
-					sellarmor = E.db.bags.vendorGrays.armor
-					local sellvalueCopper = (sellValueGold or 0) * 10000 + (sellValueSilver or 0) * 100
-					local isValuableGear = ((iType == "Weapon" and sellweapon) or (iType == "Armor" and sellarmor)) and itemPrice and (itemPrice > sellvalueCopper)
-					local isGreenEnabled = E.db.bags.vendorGrays.enablegreen and (rarity == 2)
-					local isBlueEnabled = E.db.bags.vendorGrays.enableblue and (rarity == 3)
-					local isNotQuestItem = (iType ~= "Quest")
-					local isWorthless = (itemPrice == 0)
-	
-					if (isJunk or isValuableGear) and (isGreenEnabled or isBlueEnabled or isJunk) and isNotQuestItem and not isWorthless then
-						local stackCount = select(2, GetContainerItemInfo(bag, slot)) or 1
-						local stackValue = (itemPrice or 0) * stackCount
-	
-						if not grouped[itemID] then
-							grouped[itemID] = {
-								itemID = itemID,
-								link = link,
-								value = 0,
-								stackCount = 0,
-								slots = {}
-							}
-						end
-	
-						grouped[itemID].value = grouped[itemID].value + stackValue
-						grouped[itemID].stackCount = grouped[itemID].stackCount + stackCount
-						tinsert(grouped[itemID].slots, { bag = bag, slot = slot })
-					end
-				end
-			end
-		end
-	end
-	
-	deletelist = {}
-	for _, item in pairs(grouped) do
-		tinsert(deletelist, item)
-	end
-
+    if JunkConfirmFrame and JunkConfirmFrame:IsShown() then B.JunkConfirmFrame:Hide() end
+    
+    local deletelist = {}
+    local grouped = {}
+    
+    for bag = 0, 4 do
+        for slot = 1, GetContainerNumSlots(bag) do
+            local itemID = GetContainerItemID(bag, slot)
+            
+            if itemID then
+                local name, link, rarity, _, _, iType, _, _, _, _, itemPrice = GetItemInfo(itemID)
+                local isJunk = (rarity == 0)
+                local sellValueGold = E.db.bags.vendorGrays.gold or 0
+                local sellValueSilver = E.db.bags.vendorGrays.silver or 0
+                local sellweapon = E.db.bags.vendorGrays.weapon
+                local sellarmor = E.db.bags.vendorGrays.armor
+                local sellvalueCopper = (sellValueGold * 10000) + (sellValueSilver * 100)
+                local isValuableGear = ((iType == "Weapon" and sellweapon) or (iType == "Armor" and sellarmor)) and itemPrice and (itemPrice > sellvalueCopper)
+                local isGreenEnabled = E.db.bags.vendorGrays.enablegreen and (rarity == 2)
+                local isBlueEnabled = E.db.bags.vendorGrays.enableblue and (rarity == 3)
+                local isNotQuestItem = (iType ~= "Quest")
+                local isWorthless = (itemPrice == 0)
+                local ignored = E.db.bags.IgnoreVendList[itemID] or E.db.bags.IgnoreVendList[tostring(itemID)]
+                local onSellList = E.db.bags.CustomSellList and (E.db.bags.CustomSellList[itemID] or E.db.bags.CustomSellList[tostring(itemID)])
+                local isSellEnabled = E.db.bags.vendorGrays.enable
+                
+                -- Check if item should be sold
+                local shouldSell = (isSellEnabled and not ignored and 
+                                   (onSellList or (isJunk or (isValuableGear and (isGreenEnabled or isBlueEnabled)))) and 
+                                   isNotQuestItem and not isWorthless)
+                
+                if shouldSell then
+                    local stackCount = select(2, GetContainerItemInfo(bag, slot)) or 1
+                    local stackValue = (itemPrice or 0) * stackCount
+                    
+                    if not grouped[itemID] then
+                        grouped[itemID] = {
+                            itemID = itemID,
+                            link = link,
+                            value = 0,
+                            stackCount = 0,
+                            slots = {}
+                        }
+                    end
+                    
+                    grouped[itemID].value = grouped[itemID].value + stackValue
+                    grouped[itemID].stackCount = grouped[itemID].stackCount + stackCount
+                    tinsert(grouped[itemID].slots, { bag = bag, slot = slot })
+                end
+            end
+        end
+    end
+    
+    for _, item in pairs(grouped) do
+        tinsert(deletelist, item)
+    end
+    
+    -- ALWAYS show the frame, but let ShowJunkConfirmFrame handle button visibility
     B:ShowJunkConfirmFrame(deletelist, "vendor")
 end
 
 	-- create / show the list frame
 	local ignoreFrame
+	local CustomSellFrame
 	local rowButtons = {}
+	local CustomSellrowButtons = {}
+	
 
 local function RemoveIgnoredItem(itemID)
 	E.db.bags.IgnoreVendList[itemID] = nil
-	if B and B.UpdateListRemove then B:UpdateListRemove(itemID) end -- optional update call like original
-	--if ignoreFrame and ignoreFrame:IsShown() then ignoreFrame:Refresh() end
+	if B and B.UpdateIgnoreListRemove then B:UpdateIgnoreListRemove(itemID) end
+end
+
+local function RemoveCustomSellItem(itemID)
+	E.db.bags.CustomSellList[itemID] = nil
+	if B and B.UpdateSellListRemove then B:UpdateSellListRemove(itemID) end
 end
 
 
@@ -1706,6 +1571,283 @@ function B:BringIgnoreToFront()
 	f:SetToplevel(true)
 	f:Raise()
 	f:Show()
+end
+
+function B:BringCustomSellToFront()
+	local f = CustomSellFrame
+	if not f then return end
+	
+	if f and not f.__opaqueBg then
+	local bg = f:CreateTexture(nil, "BACKGROUND", nil, -7) -- deep background layer
+	bg:SetAllPoints(f)
+	bg:SetColorTexture(0, 0, 0, 1) -- black, fully opaque (alpha=1)
+	f.__opaqueBg = bg
+	end
+	
+	-- Ensure it's parented to UIParent (top-level)
+	f:SetParent(UIParent)
+	
+	-- Use a high-but-safe strata
+	f:SetFrameStrata("FULLSCREEN_DIALOG") -- DIALOG or FULLSCREEN_DIALOG recommended
+	
+	-- Use a high frame level so it sits above most frames in the same strata
+	local level = math.max(100, (f:GetFrameLevel() or 0) + 50)
+	f:SetFrameLevel(level)
+	
+	-- Make it a top-level window and bring to front
+	f:SetToplevel(true)
+	f:Raise()
+	f:Show()
+end
+
+function B:ShowCustomSellListFrame()
+	if not CustomSellFrame then
+	local f = CreateFrame("Frame", "CustomSellFrame", UIParent, "BackdropTemplate")
+	f:SetSize(280, 280)
+	f:ClearAllPoints()
+	MakeMovable(f, "CustomSellFrame")
+	f:SetPoint("CENTER")
+	
+	f:SetBackdrop({
+	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+	tile = true, tileSize = 32, edgeSize = 32,
+	insets = { left = 8, right = 8, top = 8, bottom = 8 },
+	})
+	
+	
+	local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	title:SetPoint("TOP", -10, -10)
+	title:SetText(L["Drag items here to add to sell list"])
+	
+	local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+	close:SetPoint("TOPRIGHT", -6, -6)
+	tinsert(UISpecialFrames, f:GetName())
+	
+	-- Scrollframe
+	local scroll = CreateFrame("ScrollFrame", "MyIgnoreListScroll", f, "UIPanelScrollFrameTemplate")
+	scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -40)
+	scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -30, 12)
+	
+	local content = CreateFrame("Frame", nil, scroll)
+	content:SetSize(1, 1) -- width will be resized on populate
+	scroll:SetScrollChild(content)
+	f.content = content
+	f.scroll = scroll
+
+-- a refresh method that rebuilds rows
+function f:Refresh()
+  local content = self.content
+  -- first clear existing buttons
+  for _, btn in ipairs(CustomSellrowButtons) do
+    btn:Hide()
+  end
+
+  --- collect unique numeric ids (dedupe string vs numeric keys)
+	local ids_map = {}
+	for id in pairs(E.db.bags.CustomSellList) do
+	local n = tonumber(id) or id
+	if n then
+	ids_map[tostring(n)] = tonumber(n) or n
+	end
+	end
+	local ids = {}
+	for _, v in pairs(ids_map) do
+	tinsert(ids, v)
+	end
+	table.sort(ids)
+--skuly
+  local y = -4
+  local width = scroll:GetWidth()
+  local index = 1
+  for _, itemID in ipairs(ids) do
+    local name, link, icon = select(1, GetItemInfo(itemID)), select(2, GetItemInfo(itemID)), GetItemIcon(itemID)
+    local displayName = name or ("Item "..tostring(itemID))
+    local colored = ColorByRarity(displayName, itemID)
+
+    local btn = CustomSellrowButtons[index]
+    if not btn then
+      btn = CreateFrame("Button", nil, content)
+      btn:SetSize(width - 20, 20)
+
+      btn.icon = btn:CreateTexture(nil, "BACKGROUND")
+      btn.icon:SetSize(20, 20)
+      btn.icon:SetPoint("LEFT", 4, 0)
+
+      --btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	  --btn.text:SetPoint("LEFT", btn, "LEFT", 24, 0)
+      --btn.text:SetJustifyH("LEFT")
+	  
+	   -- Item link (left-aligned)
+	  btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	  btn.text:SetPoint("LEFT", btn, "LEFT", 28, 0)
+	  btn.text:SetText(link or "Unknown Item")
+
+      btn.remove = CreateFrame("Button", nil, btn, "UIPanelButtonTemplate")
+      btn.remove:SetSize(70, 22)
+      btn.remove:SetPoint("LEFT", btn.text, "RIGHT", 3, 0)
+      btn.remove:SetText(REMOVE or "Remove")
+
+      -- mouseover tooltip
+      btn:SetScript("OnEnter", function(self)
+        if link then GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink(link); GameTooltip:Show() end
+      end)
+      btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+      CustomSellrowButtons[index] = btn
+    else
+      btn:Show()
+    end
+
+    btn:SetPoint("TOPLEFT", content, "TOPLEFT", 4, y)
+    if icon then btn.icon:SetTexture(icon) else btn.icon:SetTexture(nil) end
+    btn.text:SetText(colored)
+    btn.remove:SetScript("OnClick", function() RemoveCustomSellItem(itemID) end)
+
+    y = y - 28
+    index = index + 1
+  end
+
+  content:SetHeight(math.max(1, -y + 4))
+end
+
+
+	local function GetIDFromCursorInfo(info)
+		if not info then return nil end
+		if type(info) == "number" then return tonumber(info) end
+		if type(info) == "string" then
+		-- if it's an item link, try to extract ID
+		local id = tonumber(string.match(info, "item:(%d+)"))
+		if id then return id end
+		-- if you have a conversion helper, use it (uncomment if available)
+		-- return B:ConvertLinkToID(info)
+		end
+		return nil
+		end
+		
+local function AddItemToSell(itemID)
+    if not itemID then return end
+    
+    -- require a numeric item id so DB keys are always numbers
+    local nID = tonumber(itemID)
+    if not nID then
+        if E and E.Print then E:Print(("Invalid item id: %s"):format(tostring(itemID))) end
+        return
+    end
+    
+    -- Try to get item info (may be nil if not cached on 3.3.5a)
+    local rawName, rawLink, rarity, _, _, iType, _, _, _, _, itemPrice = GetItemInfo(nID)
+    local hadInfo = (rawLink ~= nil)
+    
+    -- fallback placeholders when not cached
+    local itemname = rawName or ("Item "..tostring(nID))
+    local itemlink = rawLink or itemname
+    
+    -- CORRECTED VALIDATION: Allow uncached items OR items that are not quest items AND have value
+    local validToAdd = (not hadInfo) or (iType ~= "Quest" and itemPrice and itemPrice >= 1)
+    
+    if not validToAdd then
+        E:Print((itemlink or itemname) .. " |cFFFFFF00You can NOT add Quest items or no value items to sell list.|r")
+        return
+    end
+    
+    -- Remove from ignore list if it exists there
+    local wasOnIgnoreList = false
+    if E.db.bags.IgnoreVendList[nID] or E.db.bags.IgnoreVendList[tostring(nID)] then
+        B:UpdateIgnoreListRemove(nID)
+        wasOnIgnoreList = true
+    end
+    
+    -- avoid duplicates using numeric key only
+    if E.db and E.db.bags and E.db.bags.CustomSellList and E.db.bags.CustomSellList[nID] == nil then
+        if B and B.UpdateSellListAdd then
+            B:UpdateSellListAdd(nID, itemname)
+        else
+            -- fallback: write directly as numeric key
+            E.db.bags.CustomSellList[nID] = itemname
+        end
+        
+        if wasOnIgnoreList then
+            E:Print((itemlink or itemname) .. " |cFF00FF00moved from ignore list to sell list.|r")
+        else
+            E:Print((itemlink or itemname) .. " |cFF00FF00added to your sell list.|r")
+        end
+        
+        if CustomSellFrame and CustomSellFrame.Refresh then CustomSellFrame:Refresh() end
+        
+        -- CRITICAL FIX: Refresh the main confirmation frame if it's open
+        if B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() and B._lastJunkMode == "vendor" then
+            -- Close and reopen the confirmation frame to refresh the item list
+            B.JunkConfirmFrame:Hide()
+            B:VendorGrayCheck()
+        end
+    else
+        E:Print((itemlink or itemname) .. " |cFFFFA500is already in the sell list.|r")
+    end
+end
+	
+	-- In the HandleCursorDrop function within ShowCustomSellListFrame:
+	local function HandleCursorDrop(self)
+		local cursorType, info1 = GetCursorInfo()
+		if not cursorType then return end
+		if cursorType == "item" then
+			local id = GetIDFromCursorInfo(info1)
+			if id then
+				-- Make sure the frame is shown before adding the item
+				if not CustomSellFrame:IsShown() then
+					CustomSellFrame:Show()
+					B:BringCustomSellToFront()
+				end
+				AddItemToSell(id)
+				ClearCursor() -- remove the item from cursor (so it isn't dropped into world)
+			end
+		end
+		-- optionally handle other types (spell, macro) if needed
+	end
+	
+	-- catch drag & drop and mouse-up drops
+	f:SetScript("OnReceiveDrag", HandleCursorDrop)
+	f:SetScript("OnMouseUp", function(self, button)
+	if CursorHasItem() then HandleCursorDrop(self) end
+	end)
+	
+	-- Visual feedback: highlight when a cursor item is over the frame
+	f:SetScript("OnEnter", function(self)
+	if CursorHasItem() then
+	self.oldBackdrop = self.oldBackdrop or self:GetBackdrop()
+	self:SetBackdropColor(0.2, 0.5, 0.2, 0.25)
+	end
+	end)
+	f:SetScript("OnLeave", function(self)
+	if self.oldBackdrop then
+	self:SetBackdropColor(1,1,1,1)
+	end
+	end)
+	
+	-- Refresh the list when item info becomes available (so names/icons update)
+	f:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+	f:SetScript("OnEvent", function(self, event, arg1, ...)
+	-- arg1 is itemID on Retail; adapt for Classic if different
+	if event == "GET_ITEM_INFO_RECEIVED" and arg1 then
+	if E.db.bags.CustomSellList[tostring(arg1)] or E.db.bags.CustomSellList[tonumber(arg1)] then
+	if self.Refresh then self:Refresh() end
+	end
+	end
+	end)
+	
+	CustomSellFrame = f
+	end
+	
+	-- For refreshing:
+	if CustomSellFrame and CustomSellFrame.Refresh then
+		CustomSellFrame:Refresh()
+	end
+
+-- For showing:
+	if CustomSellFrame then
+		CustomSellFrame:Show()
+		B:BringCustomSellToFront()
+	end
 end
 
 function B:ShowIgnoreListFrame()
@@ -1766,7 +1908,7 @@ function f:Refresh()
 	tinsert(ids, v)
 	end
 	table.sort(ids)
---skuly
+
   local y = -4
   local width = scroll:GetWidth()
   local index = 1
@@ -1783,10 +1925,6 @@ function f:Refresh()
       btn.icon = btn:CreateTexture(nil, "BACKGROUND")
       btn.icon:SetSize(20, 20)
       btn.icon:SetPoint("LEFT", 4, 0)
-
-      --btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	  --btn.text:SetPoint("LEFT", btn, "LEFT", 24, 0)
-      --btn.text:SetJustifyH("LEFT")
 	  
 	   -- Item link (left-aligned)
 	  btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1836,52 +1974,72 @@ local function GetIDFromCursorInfo(info)
 	end
 	
 	local function AddItemToIgnore(itemID)
-	if not itemID then return end
-	
-	-- require a numeric item id so DB keys are always numbers
-	local nID = tonumber(itemID)
-	if not nID then
-		if E and E.Print then E:Print(("Invalid item id: %s"):format(tostring(itemID))) end
-		return
-	end
-	-- Try to get item info (may be nil if not cached on 3.3.5a)
-	local rawName, rawLink, rarity, _, _, iType = GetItemInfo(nID)
-	local hadInfo = (rawLink ~= nil)
-	-- fallback placeholders when not cached
-	local itemname = rawName or ("Item "..tostring(nID))
-	local itemlink = rawLink or itemname
-	-- Validation: allow when we don't have cached info, OR when it's junk (rarity 0),
-	-- OR when it's green/blue armor or weapon
-	local validToAdd = (not hadInfo)
-		or (rarity == 0)
-		or ((rarity == 2 or rarity == 3) and (iType == "Weapon" or iType == "Armor"))
-	if not validToAdd then
-		E:Print((itemlink or itemname) .. " |cFFFFFF00You can only add Junk and Green or Blue Armor and Weapons to ignore list.|r")
-		return
-	end
-	-- avoid duplicates using numeric key only
-	if E.db and E.db.bags and E.db.bags.IgnoreVendList and E.db.bags.IgnoreVendList[nID] == nil then
-		if B and B.UpdateListAdd then
-			B:UpdateListAdd(nID, itemname)
-		else
-			-- fallback: write directly as numeric key
-			E.db.bags.IgnoreVendList[nID] = itemname
-		end
-		E:Print((itemlink or itemname) .. " |cFF00FF00added to your ignore list.|r")
-		if ignoreFrame and ignoreFrame.Refresh then ignoreFrame:Refresh() end
-	else
-		E:Print((itemlink or itemname) .. " |cFFFFA500is already in the ignore list.|r")
-	end
-	-- if the confirm dialog is open, rebuild it according to the last mode
-	if B and B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() then
-	if B._lastJunkMode == "vendor" then
-	B:VendorGrayCheck()
-	else
-	B:DeleteJunkCheck()
-	end
-	end
-	
-	end
+    if not itemID then return end
+    
+    -- require a numeric item id so DB keys are always numbers
+    local nID = tonumber(itemID)
+    if not nID then
+        if E and E.Print then E:Print(("Invalid item id: %s"):format(tostring(itemID))) end
+        return
+    end
+    
+    -- Try to get item info (may be nil if not cached on 3.3.5a)
+    local rawName, rawLink, rarity, _, _, iType = GetItemInfo(nID)
+    local hadInfo = (rawLink ~= nil)
+    
+    -- fallback placeholders when not cached
+    local itemname = rawName or ("Item "..tostring(nID))
+    local itemlink = rawLink or itemname
+    
+    -- Validation: allow when we don't have cached info, OR when it's junk (rarity 0),
+    -- OR when it's green/blue armor or weapon
+    local validToAdd = (not hadInfo)
+        or (rarity == 0)
+        or ((rarity == 2 or rarity == 3) and (iType == "Weapon" or iType == "Armor"))
+    
+    if not validToAdd then
+        E:Print((itemlink or itemname) .. " |cFFFFFF00You can only add Junk and Green/Blue Armor or Weapons to ignore list.|r")
+        return
+    end
+    
+    -- Remove from sell list if it exists there
+    local wasOnSellList = false
+    if E.db.bags.CustomSellList[nID] or E.db.bags.CustomSellList[tostring(nID)] then
+        B:UpdateSellListRemove(nID)
+        wasOnSellList = true
+    end
+    
+    -- avoid duplicates using numeric key only
+    if E.db and E.db.bags and E.db.bags.IgnoreVendList and E.db.bags.IgnoreVendList[nID] == nil then
+        if B and B.UpdateIgnoreListAdd then
+            B:UpdateIgnoreListAdd(nID, itemname)
+        else
+            -- fallback: write directly as numeric key
+            E.db.bags.IgnoreVendList[nID] = itemname
+        end
+        
+        if wasOnSellList then
+            E:Print((itemlink or itemname) .. " |cFF00FF00moved from sell list to ignore list.|r")
+        else
+            E:Print((itemlink or itemname) .. " |cFF00FF00added to your ignore list.|r")
+        end
+        
+        if ignoreFrame and ignoreFrame.Refresh then ignoreFrame:Refresh() end
+        
+        -- CRITICAL FIX: Refresh the main confirmation frame if it's open
+        if B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() then
+            if B._lastJunkMode == "vendor" then
+                B.JunkConfirmFrame:Hide()
+                B:VendorGrayCheck()
+            else
+                B.JunkConfirmFrame:Hide()
+                B:DeleteJunkCheck()
+            end
+        end
+    else
+        E:Print((itemlink or itemname) .. " |cFFFFA500is already in the ignore list.|r")
+    end
+end
 	
 	local function HandleCursorDrop(self)
 	local cursorType, info1 = GetCursorInfo()
@@ -1989,7 +2147,7 @@ function B:CreateJunkConfirmFrame()
 	
 	local ignorelistbtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
 	ignorelistbtn:SetSize(60, 20)
-	ignorelistbtn:SetPoint("RIGHT", frame.confirmBtn, "LEFT", -6, 0) -- place left of confirm
+	ignorelistbtn:SetPoint("RIGHT", frame.confirmBtn, "LEFT", 185, 0) -- place left of confirm
 	ignorelistbtn:SetText("Ignore List")
 	
 	ignorelistbtn:SetScript("OnClick", function()
@@ -1999,6 +2157,19 @@ function B:CreateJunkConfirmFrame()
 		B:ShowIgnoreListFrame() -- creates & shows the frame if needed
 	end
 	end)
+	
+	local selllistbtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+	selllistbtn:SetSize(60, 20)
+	selllistbtn:SetPoint("RIGHT", frame.confirmBtn, "LEFT", -6, 0) -- place left of confirm
+	selllistbtn:SetText("Sell List")
+	
+	selllistbtn:SetScript("OnClick", function()
+    if CustomSellFrame and CustomSellFrame:IsShown() then
+        CustomSellFrame:Hide()
+    else
+        B:ShowCustomSellListFrame() -- Just show the sell list, don't touch main frame
+    end
+end)
 
     B.JunkConfirmFrame = frame
 	
@@ -2035,19 +2206,21 @@ end
 
 
 function B:DeleteJunkCheck()
-	if E.db.bags.vendorGrays.enable then
-		if MerchantFrame and MerchantFrame:IsShown() then 
-			B:VendorGrayCheck()
-			return
-		end
-	else
-		if MerchantFrame and MerchantFrame:IsShown() then 
-			E:Print("Button disabled while at vendor to prevent accidental deletion.")
-			return
-		end
-	end
-    local grouped = {}
-
+    if E.db.bags.vendorGrays.enable then
+        if MerchantFrame and MerchantFrame:IsShown() then 
+            B:VendorGrayCheck()
+            return
+        end
+    else
+        if MerchantFrame and MerchantFrame:IsShown() then 
+            E:Print("Button disabled while at vendor to prevent accidental deletion.")
+            return
+        end
+    end
+    
+    local deletelist = {} -- Local to this function
+    local grouped = {} -- Local grouped table
+    
     for bag = 0, 4 do
         for slot = 1, GetContainerNumSlots(bag) do
             local itemID = GetContainerItemID(bag, slot)
@@ -2057,7 +2230,7 @@ function B:DeleteJunkCheck()
                 local isJunk = (rarity == 0)
                 local isNotQuestItem = (iType ~= "Quest")
                 local hasNoValue = (itemPrice == 0 or itemPrice == nil)
-                local ignored = E.db.bags.IgnoreVendList[itemID]
+                local ignored = E.db.bags.IgnoreVendList[itemID] or E.db.bags.IgnoreVendList[tostring(itemID)]
 
                 if isJunk and not ignored and isNotQuestItem and not hasNoValue then
                     local stackCount = select(2, GetContainerItemInfo(bag, slot)) or 1
@@ -2081,12 +2254,11 @@ function B:DeleteJunkCheck()
         end
     end
 
-    deletelist = {}
     for _, item in pairs(grouped) do
         table.insert(deletelist, item)
     end
-		
-        B:ShowJunkConfirmFrame(deletelist, "delete")
+        
+    B:ShowJunkConfirmFrame(deletelist, "delete")
 end
 
 
@@ -2364,7 +2536,15 @@ function B:ContructContainerFrame(name, isBank)
 		f.deleteGraysButton.ttText = L["Delete Grays"]
 		f.deleteGraysButton:SetScript("OnEnter", B.Tooltip_Show)
 		f.deleteGraysButton:SetScript("OnLeave", GameTooltip_Hide)
-		f.deleteGraysButton:SetScript("OnClick", B.DeleteJunkCheck)
+		f.deleteGraysButton:SetScript("OnClick", function()
+			-- If at vendor and vendor grays is enabled, always re-scan and show vendor frame
+			if MerchantFrame and MerchantFrame:IsShown() and E.db.bags.vendorGrays.enable then
+				B:VendorGrayCheck() -- This will re-scan and show frame with current items
+			else
+				-- Otherwise, do normal delete check
+				B:DeleteJunkCheck()
+			end
+		end)
 
 		--Search
 		f.editBox = CreateFrame("EditBox", name.."EditBox", f)
@@ -2632,13 +2812,23 @@ function B:PostBagMove()
 end
 
 function B:MERCHANT_SHOW()
-	if E.db.bags.vendorGrays.enable then
-	B.VendorGrayCheck()
-	end
+    if E.db.bags.vendorGrays.enable then
+        B:VendorGrayCheck()
+    end
+    
+    -- Update confirm frame if it's open and in vendor mode
+    if B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() and B._lastJunkMode == "vendor" then
+        B.JunkConfirmFrame.confirmBtn:Show()
+    end
 end
 
 function B:MERCHANT_CLOSED()
-	B.SellFrame:Hide()
+    B.SellFrame:Hide()
+    
+    -- Hide sell button in confirm frame if it's open
+    if B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() and B._lastJunkMode == "vendor" then
+        B.JunkConfirmFrame.confirmBtn:Hide()
+    end
 end
 
 function B:ProgressQuickVendor()
@@ -2741,6 +2931,7 @@ function B:CreateSellFrame()
 		sellValueSilver = E.db.bags.vendorGrays.silver,
 		sellweapon = E.db.bags.vendorGrays.weapon,
 		sellarmor = E.db.bags.vendorGrays.armor,
+		CustomSellList = E.db.bags.CustomSellList,
 		sortaftersell = E.db.bags.vendorGrays.sortaftersell,
 		itemList = {}
 	}
@@ -2763,13 +2954,14 @@ function B:UpdateSellFrameSettings()
 	sellValueSilver = E.db.bags.vendorGrays.silver
 	sellValueGold = E.db.bags.vendorGrays.gold
 	sellweapon = E.db.bags.vendorGrays.weapon
+	CustomSellList = E.db.bags.CustomSellList
 	sellarmor = E.db.bags.vendorGrays.armor
 	sortaftersell = E.db.bags.vendorGrays.sortaftersell
 	
 	B.SellFrame:SetAlpha(E.db.bags.vendorGrays.progressBar and 1 or 0)
 end
 
-function B:UpdateListAdd(itemID, itemname)
+function B:UpdateIgnoreListAdd(itemID, itemname)
 	if not itemID then return end
 	local num = tonumber(itemID)
 	local key = tostring(num or itemID)
@@ -2792,26 +2984,74 @@ function B:UpdateListAdd(itemID, itemname)
 	end
 end
 
-function B:UpdateListRemove(itemID)
+function B:UpdateIgnoreListRemove(itemID)
+    if not itemID then return end
+    local num = tonumber(itemID)
+    local key = tostring(num or itemID)
+    local itemName = select(2, GetItemInfo(num)) or key
+    
+    -- Remove from both numeric and string keys
+    E.db.bags.IgnoreVendList[key] = nil
+    if num then E.db.bags.IgnoreVendList[num] = nil end
+    
+    E:Print((itemName or key).." |CFFD4B961removed from your ignore list.|r")
+    
+    if ignoreFrame and ignoreFrame:IsShown() and ignoreFrame.Refresh then
+        ignoreFrame:Refresh()
+    end
+    
+    if B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() then
+        if B._lastJunkMode == "vendor" then
+            B:VendorGrayCheck()
+        else
+            B:DeleteJunkCheck()
+        end
+    end
+end
+
+
+function B:UpdateSellListAdd(itemID, itemname)
 	if not itemID then return end
 	local num = tonumber(itemID)
 	local key = tostring(num or itemID)
-	local itemName = select(2, GetItemInfo(num)) or key
+	local name = itemname or select(1, GetItemInfo(num)) or key
 	
-	E.db.bags.IgnoreVendList[key] = nil
-	if num then E.db.bags.IgnoreVendList[num] = nil end
-	E:Print((itemName or key).." |CFFD4B961removed from your ignore list.|r")
-	if ignoreFrame and ignoreFrame:IsShown() and ignoreFrame.Refresh then
-		ignoreFrame:Refresh()
+	-- store both string and numeric keys so lookups work regardless of type
+	E.db.bags.CustomSellList[key] = name
+	if num then E.db.bags.CustomSellList[num] = name end
+	
+	-- refresh sell list UI if visible
+	if CustomSellFrame and CustomSellFrame:IsShown() and CustomSellFrame.Refresh then
+		CustomSellFrame:Refresh()
 	end
+	
+	-- If the confirm frame is open, rebuild it from current bag contents
 	if B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() then
-		if B._lastJunkMode == "vendor" then
-			B:VendorGrayCheck()
-		else
-			B:DeleteJunkCheck()
-		end
+		B:VendorGrayCheck()
 	end
 end
+
+function B:UpdateSellListRemove(itemID)
+    if not itemID then return end
+    local num = tonumber(itemID)
+    local key = tostring(num or itemID)
+    local itemName = select(2, GetItemInfo(num)) or key
+    
+    -- Remove from both numeric and string keys
+    E.db.bags.CustomSellList[key] = nil
+    if num then E.db.bags.CustomSellList[num] = nil end
+    
+    E:Print((itemName or key).." |CFFD4B961removed from your sell list.|r")
+    
+    if CustomSellFrame and CustomSellFrame:IsShown() and CustomSellFrame.Refresh then
+        CustomSellFrame:Refresh()
+    end
+    
+    if B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() then
+        B:VendorGrayCheck()
+    end
+end
+
 
 B.BagIndice = {
 	quiver = 0x0001,

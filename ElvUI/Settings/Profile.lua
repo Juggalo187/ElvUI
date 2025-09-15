@@ -166,6 +166,7 @@ P.bags = {
 	junkIcon = false,
 	junkDesaturate = true,
 	IgnoreVendList = {},
+	CustomSellList = {},
 	unlearnedVanityIcon = false,
 	unlearnedWardrobeIcon = false,
 	ignoredItems = {},
