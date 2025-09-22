@@ -455,8 +455,9 @@ S:AddCallbackForAddon("Auc-Advanced", "Auc-Advanced", function()
 			local i = 1
 			local button = _G["BrowseButton"..i]
 			while button do
+				if button.Icon then
 				button.Icon:SetTexCoord(unpack(E.TexCoords))
-
+				end
 				i = i + 1
 				button = _G["BrowseButton"..i]
 			end
