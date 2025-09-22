@@ -1375,12 +1375,12 @@ function B:ShowJunkConfirmFrame(deletelist, mode)
     -- Add tooltip to explain why button is hidden
     if not merchantOpen then
         frame.merchantWarning = frame.merchantWarning or frame:CreateFontString(nil, "OVERLAY", "GameFontRed")
-        frame.merchantWarning:SetPoint("BOTTOM", frame.confirmBtn, "TOP", 0, -8)
+        frame.merchantWarning:SetPoint("BOTTOM", frame.confirmBtn, "TOP", 0, -15)
         frame.merchantWarning:SetText("Visit a vendor to sell items")
         frame.merchantWarning:Show()
     elseif not hasItems then
         frame.merchantWarning = frame.merchantWarning or frame:CreateFontString(nil, "OVERLAY", "GameFontRed")
-        frame.merchantWarning:SetPoint("BOTTOM", frame.confirmBtn, "TOP", 0, -8)
+        frame.merchantWarning:SetPoint("BOTTOM", frame.confirmBtn, "TOP", 0, -15)
         frame.merchantWarning:SetText("No items to sell")
         frame.merchantWarning:Show()
     elseif frame.merchantWarning then
@@ -2820,6 +2820,14 @@ function B:MERCHANT_SHOW()
     if B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() and B._lastJunkMode == "vendor" then
         B.JunkConfirmFrame.confirmBtn:Show()
     end
+	
+	if CustomSellFrame then
+		CustomSellFrame:Refresh()
+	end
+	if ignoreFrame then
+		ignoreFrame:Refresh()
+	end
+
 end
 
 function B:MERCHANT_CLOSED()
@@ -2829,6 +2837,12 @@ function B:MERCHANT_CLOSED()
     if B.JunkConfirmFrame and B.JunkConfirmFrame:IsShown() and B._lastJunkMode == "vendor" then
         B.JunkConfirmFrame.confirmBtn:Hide()
     end
+	if CustomSellFrame then
+		CustomSellFrame:Refresh()
+	end
+	if ignoreFrame then
+		ignoreFrame:Refresh()
+	end
 end
 
 function B:ProgressQuickVendor()
