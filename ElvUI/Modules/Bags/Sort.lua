@@ -778,7 +778,7 @@ end
 
 function B:DoMoves()
 	if UnitAffectingCombat("player") then
-		return B:StopStacking(L["Sorting not while allowed in Combat"])
+		return B:StopStacking(L["Sorting not while allowed in Combat."])
 	end
 	if InCombatLockdown() then
 		return B:StopStacking(L["Confused.. Try Again!"])
